@@ -1,0 +1,55 @@
+---
+title: "PPJSDM Tutorial Part 1: Parameterisation"
+format: html
+editor: visual
+---
+
+# Tutorial Part 1: Model Parameterisation and Specification
+
+## Purpose of Tutorial
+
+In this tutorial
+
+## Install Package
+
+Before installing the ppjsdm package, please make sure RTools is downloaded (<https://cran.r-project.org/bin/windows/Rtools/>).
+
+```{r}
+install.packages("devtools")
+library(devtools)
+
+install_github("iflint1/ppjsdm")
+library(ppjsdm)
+
+plot(rppp())
+```
+
+The package should take a minute or two to download. If all is well, a plot of a point pattern should show.
+
+## Load Data
+
+## 
+
+## Load Environmental Data
+
+## 
+
+## Parameters
+
+overview
+
+### Configuration
+
+### Window
+
+### Short-range interaction radii
+
+### Short-range interaction potential shape
+
+### Fitting package
+
+### Saturation
+
+### Covariates
+
+### Dummy distribution
