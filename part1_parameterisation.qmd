@@ -8,7 +8,7 @@ editor: visual
 
 ## Purpose of Tutorial
 
-In this tutorial
+This series of qmd documents is designed to be a step-by-step tutorial in using the saturated pairwise interaction Gibbs point process model. The model will be used with a dataset of tree locations from the Starvation Creek forest plot in Victoria, Australia. The aim of the tutorial is to show how parameterisation and fitting of the model can be done, and then how to visualise results and use the model for prediction. In providing an in-depth tutorial, we hope that the model and this workflow can be taken up and applied to other datasets.
 
 ## Install Package
 
@@ -26,30 +26,199 @@ plot(rppp())
 
 The package should take a minute or two to download. If all is well, a plot of a point pattern should show.
 
+We can also load the other libraries we need at this point.
+
+```{r}
+library(ggplot2)
+library(dplyr)
+```
+
 ## Load Data
 
-## 
+```{r}
+
+```
 
 ## Load Environmental Data
 
-## 
+```{r}
+
+```
 
 ## Parameters
 
-overview
+There are a range of parameters supplied to the model. I will go through each parameters and recommendations on how to set these.
 
 ### Configuration
 
+The configuration gives the individuals that we want to model. To supply the configuration we must give the x and y coordinates of each individual, as well as the type of individual. The type refers to the what group the individual belongs to. The model works by maximising the pseudo-likelihood of a group of individuals interacting with another group. This group can be species, genus, size class, or any other kind of grouping. For simplicity, we can specify our types as species here.
+
+```{r}
+configuration <- Configuration(data$x, data$y, types = data$Species)
+plot(configuration)
+```
+
 ### Window
 
-### Short-range interaction radii
+The window gives the area the observed individuals exist in, and what (x, y) coordinates correspond into. In our dataset, the forest plot was 400m in length and 400m in width therefore we can set the window as such using the ppjsdm function. This can also be specified using spatstat im or owin objects.
 
-### Short-range interaction potential shape
+```{r}
+window <- ppjsdm::Rectangle_window(c(0,400), c(0,400))
+```
 
-### Fitting package
+### Short-range interaction radii (short-range) and potential shape (model)
+
+The short-range interaction radius values and potential shape are described by the short-range and model parameter respectiively. These are the more complex parameters, and are important, as all outputs of the model are held to the set short-range radii. The short-range interaction radii are the typical distances from an individual where the likelihood of finding other individuals is affected. Therefore, at the set radii the magnitude of effect of an individual on the focal individual is halved. The shape of interaction potential expresses how the likelihood of finding another individuals changes with distance. We can have a look at the different interaction potential shapes we can set: \
+
+```{r}
+possible_model <- c("square_exponential", "exponential", "square_bump", "bump", "Geyer")
+possible_short <- seq(from = 1, to = 20, length.out = 50) 
+df <- expand.grid(short = possible_short, model = possible_model) #creating dataframe with possible values
+df$potentials <- df$model
+
+ggplot(df) + geom_point(aes(x = short, y = y, colour = potentials))
+```
+
+The shapes of the interaction potential is referred to as the 'model', and these can be square exponential, exponential, square bump, bump and Geyer. Each shape shows that the affect of another individual may decreases smoothly in exponential or sharply as in square exponential with distance.
+
+The parameterisation of both short-range parameters is done using AIC minimisation. This holds all other groups at a constant short-range radius, while the focal group is minimised over the a range of set short-range radii and the shapes of the potential.
+
+We can create AIC minimisation graphs for each group in our data:
+
+```{r}
+plotlist <- list()
+
+for (h in levels(configuration$types)) {
+  to_optimize <- function(df) { #defines a new function that optimises each row in the dataframe df
+  sapply(seq_len(nrow(df)), function(i) { #loops from 1 to number of rows in df, i in function is the index to iterate through the rows of the dataframe 
+    set.seed(1)
+    fit <- ppjsdm::gibbsm(configuration[h], #create the fit
+                          window = window, 
+                          model = df$model[i],
+                          short_range = matrix(df$short[i]),
+                          saturation = saturation,
+                          dummy_distribution = "stratified",
+                          min_dummy = 1, max_dummy =1e3,
+                          dummy_factor = 1e10,
+                          nthreads = 4, 
+                          fitting_package = "glmnet")
+                          
+    fit$aic #take the aic value from the fit
+  })
+}
+
+possible_short <- seq(from = 1, to = 15, length.out = 50) #possible short_range values
+possible_model <- c("square_exponential", "exponential", "square_bump", "bump") #possible models
+df <- expand.grid(short = possible_short, model = possible_model) #creating dataframe with possible values
+df$aic <- to_optimize(df) #optimisation, run the created dataframe through the function
+df$potentials <- df$model
+
+plot <- ggplot(df) + geom_point(aes(x = short, y = aic, colour = potentials)) + ggtitle(h)
+
+plotlist[[h]] <- plot
+}
+
+for (p in plotlist) {
+  print(p)
+}
+```
+
+Based on these graphs we can set the short-range radii values.
+
+To set the same short-range radii value for each group included in the model: \
+
+```{r}
+ngroup <- length(levels(configuration$types)) #number of groups included in the model 
+short_range <- matrix(5, ngroup, ngroup) #fill a matrix of ngroup number of rows and columns with 5
+```
+
+Looking at our AIC graphs, each group in the model has a slightly different short-range radii. We can set different short-range radii for each group in the model:
+
+```{r}
+levels(configuration$types) #check groups in configuration 
+diag <- c(10, 6, 4, 8, 2)  #set diagonal of matrix according to AIC results
+n <- length(diag) #size of matrix 
+
+short_range <- matrix(diag, n, n, byrow = TRUE) #make the matrix filled with diagonal values
+
+for (i in 1:n) { 
+  for (j in 1:n) {
+    short_range[i, j] <- mean(diag[c(i, j)])#the function to fill each cell 
+  }
+}
+
+short_range
+```
+
+We can set the shape of the potential as well. There can only be one potential model set for a model fit.
+
+```{r}
+model <- "exponential"
+```
+
+This model also allows for medium and long range interactions. When these are not specified they default to 0. I will not be using these parameters in this following example.
 
 ### Saturation
 
+The saturation parameter describes the maximum number of individuals a focal individual can interact with in its interaction radius. This is in line with Rajala et al., (2018) who say as resources are finite the neighbour must saturate. Therefore, we can choose a value between 10 and 20. If this is not specified, the saturation defaults to 2. To validate this choice, we can fit iterative models changing the saturation parameter, and choose a saturation parameter value dependent on what maximises the pseudo-likelihood.
+
+```{r}
+saturation <- 10 
+```
+
 ### Covariates
 
+Environmental covariates must be an 'im' object to be applied to this model. If you have an older version of R, the package maptools provides functions to convert rasters and spatrasters into im form. However, in more recent versions of R, we can use the following code to convert spatrasters into im objects:
+
+```{r}
+as.im.SpatRaster1 <- function(X) {
+  X <- X[[1]]
+  rs <- terra::res(X)
+  e <- as.vector(terra::ext(X))
+  out <- list(
+    v = as.matrix(X, wide=TRUE)[nrow(X):1, ],
+    dim = dim(X)[1:2],
+    xrange = e[1:2],
+    yrange = e[3:4],
+    xstep = rs[1],
+    ystep = rs[2],
+    xcol = e[1] + (1:ncol(X)) * rs[1] + 0.5 * rs[1],
+    yrow = e[4] - (nrow(X):1) * rs[2] + 0.5 * rs[2],
+    type = "real",
+    units  = list(singular=units(X), plural=units(X), multiplier=1)
+  )
+  attr(out$units, "class") <- "unitname"
+  attr(out, "class") <- "im"
+  out
+}
+```
+
+It is also useful to make sure your covariates vary by around the same amount. This is to make sure that an increase or decrease in environmental or beta coefficient value means the same in all covariates, and facilitates interpretation. In this case, I will make sure that all covariates vary by around one unit. This means I will divide the elevation covariate by 100, and take the log of the TWI or topographic wetness index covariate.
+
+We then supply the covariates as a list of im objects.
+
+```{r}
+covariates <- list(elevation = elevation_im/100, TWI = TWI_im, aridity = aridity_im, u_density = u_density_im, fire = fire_im)
+
+```
+
 ### Dummy distribution
+
+There are four parameters relating to the dummy distribution: dummy_distribution, min_dummy = 1, dummy_factor, and max_dummy.
+
+We can think of dummy points acting similarly to background points in models such as Maxent. From a purely mathematical point of view, the dummy points are just an ad-hoc point process that allows us to compute an approximation of the likelihood which otherwise does not have a close form. Here is an analogy: in maths, when you want to approximate the value of a complex integral, you draw some random points, compute the function to integrate at those points, and deduce an approximation of the integral. The dummy points play the same kind of role here. In the original paper, they talk about dummy points in exactly this way: <https://people.math.aau.dk/~rw/Papers/lrlSPP.pdf>
+
+From a more practical point of view, the dummy points can be interpreted as follows. In the GLM framework, we typically work with Gaussian, logistic, Poisson, etc, regressions. How can we fit a point process, which only contains point locations, with this framework? Well, we can add some randomly distributed dummy points, call these "absences" and then prove that the logistic regression (which models presence/absence) which uses those dummy points as absences gives an \*approximate\* fit of the point process, and the approximation gets better as we increase the number of dummy points. In this sense, you can call the dummy points "pseudo-absences", since they correspond to absences in an analogue logistic regression which approximates the true point process likelihood.
+
+Dummy points allow the point process model (presence-only) to be approximated by a logistic regression (presence/absence) which is much easier to solve.
+
+The dummy distribution parameter gives how the dummy points may be drawn in space. A 'binomial' distribution draws each point uniformly (i.e with same probability of landing in any given location) over the window. A 'stratified' distribution divides the window into n equally sized boxes and draws exactly one point in each of the boxes. While both distributions result in the same number of dummy points, the stratified points are more regularly distributed.
+
+The number of dummy points we set is for each group in the model, not an overall number. So, if we set 10 dummy points, that is 10 dummy points per group included in the model. The min_dummy gives the minimum dummy points per group. The dummy_factor is the factor the maximum dummy points increase by. Therefore, if we set the dummy points as below, we would have 100 points per group in the model.
+
+```{r}
+dummy_distribution <- "stratified"
+min_dummy <- 1
+dummy_factor <- 1e10
+max_dummy <- 1e2
+```

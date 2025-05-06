@@ -4,23 +4,75 @@ format: html
 editor: visual
 ---
 
-## Quarto
+# Tutorial Part 2: Model Fitting and Common Problems
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+At this point we should have decided on all parameter values and assigned them:
 
 ```{r}
-1 + 1
+configuration <- Configuration(data$x, data$y, types = data$Species)
+window <- ppjsdm::Rectangle_window(c(0,400), c(0,400))
+model <- "exponential"
+short_range <- short_range
+saturation <- 10 
+covariates <- list(elevation = elevation_im/100, TWI = TWI_im, aridity = aridity_im, u_density = u_density_im, fire = fire_im)
 ```
 
-You can add options to executable code like this
+## Model Fit
+
+To fit the model we run:
 
 ```{r}
-#| echo: false
-2 * 2
+set.seed(2) #set seed to get same results each time 
+
+fit <- ppjsdm::gibbsm(configuration, 
+                      window = window, 
+                      model = model,
+                      short_range = short_range,
+                      fitting_package = "glmnet",
+                      saturation = saturation,
+                      covariates = covariates,
+                      dummy_distribution = "stratified",
+                      min_dummy = 1, dummy_factor = 1e10, 
+                      max_dummy = 1e2)
+
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+The number of dummy points given strongly influences the time taken to run the fit. When running initial models, we recommend lowering the max dummy point number for a quicker result. When running a final model, we recommend increasing this (around 1e4).
+
+The fit of the model produces the alpha (interaction) and beta (environmental) coefficient matrix:
+
+```{r}
+coef(fit)
+```
+
+## Model Summary
+
+This only gives the coefficients however. To get the confidence intervals, standard error and z-values for the coefficients, we can run the summary. The summary will take much more time than the fit of the model to run. Therefore we can set a time limit on how long the summary can run for.
+
+```{r}
+sum <- summary(fit, time_limt = 0.5)
+```
+
+In the summary the first set of rows are the beta_0 for each group in the model. The beta0 coefficients for each group, when multiplied by the covariates, give the log-intensity (density) of each group if there were no interactions occurring between individuals. The alpha (alpha1) coefficients, or interaction coefficients, is produced for each pair of groups included in the model for the given short-range radii value. The magnitude and direction (negative or positive) of the interaction coefficient gives us the effect on the likelihood of finding two individuals of the two groups close to each other for the short-range interaction radii values. Therefore, an interaction coefficient of -1.5 would mean the log-likelihood of finding one individual of one group close to another individual of another group decreases by 1.5 when individuals are at the given interaction distance (R).
+
+The next set of rows are for the environmental association coefficients and are given by the environmental covariate name (elevation, aridity, TWI, fire, u_density) to each group. These give the association of each group to a covariate. Therefore if there is an environmental coefficient of +0.5 would mean the likelihood of finding an individual of that group increases by 0.5 with every unit increase in the environmental covariate.
+
+The columns are firstly the coefficient value and then the standard error of that as well as the high and low 95% confidence intervals. A significance score of one to three asterisks are given based on the CIs. P and Z values are also given. The last column is the se_numerical_proportion column which gives the percentage of standard error that is due to numerical uncertainty. Numerical uncertainty is due to the distribution and number of dummy points, which are analogous to background points of other models such as Maxent. Parameters for the dummy points are specified in the fit. Dummy points can take a certain distribution through the region included in the model of binomial or stratified, which is more regularly drawn over space. A certain number of dummy points can be chosen for each group or type included in the model. These randomly distributed dummy points act as pseudo-absences as they correspond to absences in the analogous logistic regression, and this can be used to approximate the fit of the point process likelihood. The larger the number of dummy points used the more closely approximately the point process is, and so the lower the se_numerical_proportion should be. However, this value can also be affected by how well the model fits the data.
+
+## Some Common Problems
+
+At this point, you make happen across an error or warning when trying to fit the model or produce a summary of the model. I have noted these down and their solutions below.
+
+### Fitting Package 
+
+There is a parameter of fitting package, which identifies the fitting package of the logistic regression. We have set this to 'glmnet' as this fitting package gives more stability. If the fit is not running, check this parameter is set to 'glmnet' and not 'glm'.
+
+### NAs in Summary 
+
+NAs in the summary often occur when a time limit has been provided. In this case, running the summary without the time limit parameter should fix the issue. However at times NAs can occur in groups that have very few individuals or when the individuals of two groups or to a covariate has no range overlap whatsoever. This can create problems in the model as it cannot give a interaction or beta coefficient when there is no overlap. In these cases, think about combining or removing groups.
+
+### Numerical Error and Dummy Points 
+
+The numerical uncertainty (se_numerical_proportion) is the portion of the standard error on the estimates that is due to the dummy points. It is the It tends to zero as you increase the number of dummy points. Theoretically, the way this works is that the variance-covariance matrix of error can be split into two \\Sigma = \\Sigma_1 + \\Sigma_2, where \\Sigma_1 depends only on the dummy distribution and \\Sigma_2 depends on the fitted parameter \\theta. The numerical uncertainty is computed by using \\Sigma_1. 
+
+So, increasing the dummy points can reduce the numerical uncertainty, however if the number of dummy points are increased too much, then the numerical methods break down. Remember, the set number of dummy points is for each type in the model. Generally, a max dummy point of 10e4 or 10e5 will reduce numerical uncertainty well, and many more dummy points than this will start to impact the regression methods.

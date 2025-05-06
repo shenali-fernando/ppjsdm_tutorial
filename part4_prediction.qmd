@@ -4,23 +4,151 @@ format: html
 editor: visual
 ---
 
-## Quarto
+# Tutorial Part 4: Prediction  
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+Using the model we have fit in the previous parts of this tutorial, we can predict how likely an individual is likely to occur. Since we do not have another data to test against, we can predict back onto the Starvation Creek forest plot to test how well the model predicts versus the actual occurrences.
 
-## Running Code
+Prediction in our model is done by the log-Papangelou conditional intensity. We can decide what information to supply the model for prediction, and this will then create a map of predicted intensity conditional on the information given.
 
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+We use the function plot_papangelou to do prediction.
 
-```{r}
-1 + 1
-```
-
-You can add options to executable code like this
+## Prediction
 
 ```{r}
-#| echo: false
-2 * 2
+plot_papangelou(fit, #the fit 
+                window = window, #window of the plot 
+                type = "S", 
+                type_description = "Focal Group",
+                use_log = TRUE, 
+                drop_type_from_configuration = TRUE, 
+                show = "S", 
+                legend_title = "Conditional Intensity")
+  
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+The important parameters to note here is the type. The type is the group that we wish to create a predicted conditional intensity map for. We want to drop the type from the configuration - this means that when the model is using the fitted coefficients to create the conditional intensity map, the locations of allindividuals of the configuration EXCEPT that of the type give information to create the map. Essentially, this means if Group A has strong repulsion from our type, we have this information of interaction and the location of individuals of Group A, but not the location of individuals of the type. The show parameter describes which group of individuals we want to overlay over the conditional intensity map. This is often the same as the type, as we wish to compare the predicted conditional intensity to that of the actual locations of the type, but may also be used to check if strong interactions can be qualitatively shown in the predicted map.
+
+The scale of the conditional intensity map is important to note. Values that are lower than -10, mean there is a zero likelihood of individuals of the type occurirng at that location. Therefore we can set the limits parameter to make sure this is not obscuring the prediction. \
+
+```{r}
+ plot_papangelou(fit,
+                window = window,
+                type = "S", 
+                type_description = "Focal Group",
+                use_log = TRUE, 
+                drop_type_from_configuration = TRUE, 
+                show = "S", 
+                legend_title = "Conditional Intensity", 
+                limits = c(-10, 0))
+```
+
+## Conditional Area Under the ROC Curve (AUC) Score 
+
+One qualitative way to describe how well the model is performing is using the AUC score. Although this score has its drawbacks, we can use it with reasonable confidence here to get an idea of how well the model is performing for each type included in the model.
+
+We can use this function:
+
+```{r}
+conditional_auc <- function(configuration, fit) {
+  
+  for(focal in levels(types(configuration))) {
+    
+    conditional_intensity <- suppressWarnings(
+      ppjsdm::plot_papangelou(fit,
+                              type = focal,
+                              drop_type_from_configuration = TRUE,
+                              return_papangelou = TRUE,
+                              grid_steps = c(100, 100), 
+                              nthreads = 4))
+    
+    focal_configuration <- suppressWarnings(ppp(x = configuration[focal]$x,
+                                                y = configuration[focal]$y, 
+                                                window = owin(c(0, 400), c(0, 400))))
+    
+    cat(paste0("Focal species: ", focal, ", conditional AUC: ", 
+               auc(focal_configuration, conditional_intensity), ".\n"))
+  }
+}
+```
+
+This function compares the predicted conditional intensity map to that of the configuration of the focal group to produce the conditional AUC score for the focal group.
+
+```{r}
+conditional_auc(configuration. fit)
+```
+
+## Comparison to Other Models 
+
+We can also compare our model to other models to understand if our model is doing better or worse. The main model of comparison we can use is the Poisson model. In this model, there are no interactions between individuals but there is environmental heterogeneity.
+
+To do this we can create a Poisson model:
+
+```{r}
+#Fit model; the parameters are the same except we set the short-range interaction radii parameter to 0 
+fit_poi <- ppjsdm::gibbsm(configuration, 
+                      window = window, 
+                      model = model,
+                      short_range = matrix(0, ngroup, ngroup),
+                      fitting_package = "glmnet",
+                      saturation = 10,
+                      covariates = covariates,
+                      dummy_distribution = "stratified",
+                      min_dummy = 1, dummy_factor = 1e10, 
+                      max_dummy = 1e2)
+```
+
+We set the short-range parameter to zero for all groups. Importantly, we use the same dummy point parameter values as the ppjsdm model. Changing this parameter can change the AUC score that we get.
+
+Another model we can create is a model with only interactions between individuals, and no environmental variables:
+
+```{r}
+fit_int <- ppjsdm::gibbsm(configuration, 
+                      window = window, 
+                      model = model,
+                      short_range = short_range,
+                      fitting_package = "glmnet",
+                      saturation = 10,
+                      #covariates = covariates,
+                      dummy_distribution = "stratified",
+                      min_dummy = 1, dummy_factor = 1e10, 
+                      max_dummy = 1e5)
+```
+
+We remove covariates from the parameters in this model. Now we have three models: one with only environmental effects, one with only interactions and one with both environment and interactions.
+
+We can compare the AUC scores of these models.
+
+```{r}
+conditional_auc(configuration. fit_poi)
+```
+
+```{r}
+conditional_auc(configuration. fit_int)
+```
+
+We can also compare these models by looking at the conditional intensity maps:
+
+```{r}
+cd_cond <- list()
+fits <-list(fit_env, fit_int, fit)
+
+for(i in seq_along(fits)){
+ plot <- plot_papangelou(fits[[i]],
+                window = window,
+                type = "C/D", 
+                type_description = "Focal Group",
+                use_log = TRUE, 
+                drop_type_from_configuration = TRUE, 
+                show = "C/D", 
+                legend_title = "Conditional Intensity", 
+                limits = c(-7, 0))
+  
+cd_cond[[i]] <- plot
+}
+
+for (p in cd_cond) {
+  print(p)
+}
+```
+
+Doing these comparisons can, a. help us understand if our model is indeed doing better than a Poisson model, and b. in which areas, to which scale and for which groups is environment or interactions with other individuals important.

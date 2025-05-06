@@ -4,23 +4,180 @@ format: html
 editor: visual
 ---
 
-## Quarto
+# Tutorial Part 3: Visualisation of Results 
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+Now that we have a model fit and summary, we can start visualisation of results. The package ppjsdm contains three visualisation functions:
 
-## Running Code
+1.  Heatmap: shows sign and magnitude of coefficient values
+2.  Chord diagram: shows the strength and direction of interactions between specific groups
+3.  Coefficient plot: shows coefficient value and confidence intervals
 
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+Each visualisation function is best used to showcase different aspects of the model outputs.
+
+## Heatmap
+
+To understand the interaction or alpha coefficients holistically we can use a heatmap. This can show us which groups are interacting most strong positively and negatively.
+
+We can do this for the alpha or interaction coefficients:
 
 ```{r}
-1 + 1
+heat_map(fit_code, 
+         coefficient = "alpha", 
+         show_values = TRUE)
 ```
 
-You can add options to executable code like this
+And also for the beta or environmental coefficients:
 
 ```{r}
-#| echo: false
-2 * 2
+heat_map(fit_code, 
+         coefficient = "beta", 
+         show_values = TRUE) 
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+## Chord Diagram 
+
+Chord diagrams are a nice way to visualise alpha coefficients between pairs of the model output. Although informative and asethetic, the downside of these diagrams are that they become unreadable with many groups.
+
+```{r}
+ppjsdm::chord_diagram_plot(fit_code,
+                           summ = sum_code,
+                           cex = 1, 
+                           legend_cex = 1,
+                           only_statistically_significant = FALSE, #show non-significant coefs
+) 
+```
+
+## Coefficient Plot
+
+Coefficient plots are a good way to visualise beta and alpha coefficients with their confidence intervals.
+
+```{r}
+ppjsdm::box_plot(fit_code, 
+                summ = sum_code, 
+                coefficient = "beta", 
+                only_statistically_significant = FALSE, 
+                which = "all", 
+                text_size = 11)
+```
+
+Coefficient plots are a good way to compare models with different specifications or parameters.
+
+```{r}
+ppjsdm::box_plot("Fit 1" = fit_code, "Fit 2" = fit_code2, 
+                summ = list(sum_code, sum_code2),  
+                coefficient = "alpha", 
+                only_statistically_significant = FALSE, 
+                which = "all", 
+                text_size = 11)
+```
+
+## Other plots
+
+There are a wide variety of plots that can be created. You do not need to keep to the functions built into the package. To create other plots, we need to change the summary output into a dataframe. This function works inside the visualisation functions above, but we can extract it here as its own function:
+
+```{r}
+make_df <- function(fit, 
+                    summ, 
+                    coefficient = c("alpha", "beta")){
+  
+if(coefficient == "alpha") {
+    estimates <- fit$coefficients$alpha[[1]]
+  } else {
+    estimates <- fit$coefficients$beta}
+
+  
+  estimates <- fit$coefficients$alpha[[1]]
+unique_names <- colnames(estimates)
+df <- as.data.frame(expand.grid(from = rownames(estimates), to = colnames(estimates)))
+#insert coefficient values
+df$coefficient <- sapply(seq_len(nrow(df)), function(i) {
+  val <- estimates[df$from[i], df$to[i]]
+  if(length(val) == 0) {
+    val <- estimates[df$to[i], df$from[i]]
+  }
+  val
+})
+
+#insert low CI value 
+df$lo <- sapply(seq_len(nrow(df)), function(i) { # Get the lower-bound of the CIs
+  val <- sum$lo$alpha[[1]][df$from[i], df$to[i]]
+  if(length(val) == 0) {
+    val <- sum$lo$alpha[[1]][df$to[i], df$from[i]]
+  }
+  val
+})
+
+#insert high CI value 
+df$hi <- sapply(seq_len(nrow(df)), function(i) { # Get the lower-bound of the CIs
+  val <- sum$hi$alpha[[1]][df$from[i], df$to[i]]
+  if(length(val) == 0) {
+    val <- sum$hi$alpha[[1]][df$to[i], df$from[i]]
+  }
+  val
+})
+
+df <- df %>% 
+  mutate(sig = ifelse(lo > 0 | hi < 0, "1", "0")) #make significance column, 1 = significant, 0 = not significant 
+
+}
+```
+
+Then use the function to create the dataframe:
+
+```{r}
+df <- make_df(fit, 
+              summ, 
+              coefficient = "alpha")
+```
+
+Now we have a dataframe with each pair in the model, their coefficient value, the low and high 95% confidence interval and significant score (1 or 0). We can use this dataframe to create any number of plots.
+
+For example, a series of scatterplots. First a beeswarm scatterplot:
+
+```{r}
+library(ggbeeswarm)
+
+ggplot() +
+  geom_beeswarm(data = df, 
+                aes(x = coefficient, 
+                    y = from, 
+                    color = sig), 
+                alpha = 0.8) +
+  scale_color_manual(values =c("grey80","black", "red"),
+                     labels = c("Not significant", 
+                                "Significant"), 
+                     labs(colour = "Key")) +
+  theme_bw()
+
+```
+
+We can make this interactive
+
+```{r}
+library(plotly)
+
+
+scatterplot <- ggplot(data = df) + geom_beeswarm(aes(x = coefficient, 
+                                                     y = from, 
+                                                     color = sig, 
+                                                     text = paste("value:", coefficient, "<br>","from", from, "<br>", "to" , to)), alpha = 0.8) +
+  scale_color_manual(values =c("grey80","black", "red"),  
+                     labels = c("Not significant",
+                                "Significant"), 
+                     labs(colour = "Key")) +
+  theme_bw()
+  
+  scatterplot <- ggplotly(scatterplot, tooltip = "text")
+  scatterplot
+```
+
+And lastly, a violin plot:
+
+```{r}
+library(ggforce)
+ggplot(data = df)+
+     geom_violin(aes(x = coefficient, y = to, fill = sig))
+
+```
+
+These don't look too impressive right now, but when there are many groups in your model (\>20), scatterplots can be very useful to understand the range of the coefficient outputs and how they compare to other model ranges.
