@@ -4,7 +4,7 @@ format: html
 editor: visual
 ---
 
-# Tutorial Part 4: Prediction  
+# Tutorial Part 4: Model Prediction and Performance
 
 Using the model we have fit in the previous parts of this tutorial, we can predict how likely an individual is likely to occur. Since we do not have another data to test against, we can predict back onto the Starvation Creek forest plot to test how well the model predicts versus the actual occurrences.
 
