@@ -13,6 +13,7 @@ configuration <- Configuration(data$x, data$y, types = data$Species)
 window <- ppjsdm::Rectangle_window(c(0,400), c(0,400))
 model <- "exponential"
 short_range <- short_range
+nthreads <- 4
 saturation <- 10 
 covariates <- list(elevation = elevation_im/100, TWI = TWI_im, aridity = aridity_im, u_density = u_density_im, fire = fire_im)
 ```
@@ -29,6 +30,7 @@ fit <- ppjsdm::gibbsm(configuration,
                       model = model,
                       short_range = short_range,
                       fitting_package = "glmnet",
+                      nthreads = nthreads,
                       saturation = saturation,
                       covariates = covariates,
                       dummy_distribution = "stratified",
@@ -57,22 +59,50 @@ In the summary the first set of rows are the beta_0 for each group in the model.
 
 The next set of rows are for the environmental association coefficients and are given by the environmental covariate name (elevation, aridity, TWI, fire, u_density) to each group. These give the association of each group to a covariate. Therefore if there is an environmental coefficient of +0.5 would mean the likelihood of finding an individual of that group increases by 0.5 with every unit increase in the environmental covariate.
 
-The columns are firstly the coefficient value and then the standard error of that as well as the high and low 95% confidence intervals. A significance score of one to three asterisks are given based on the CIs. P and Z values are also given. The last column is the se_numerical_proportion column which gives the percentage of standard error that is due to numerical uncertainty. Numerical uncertainty is due to the distribution and number of dummy points, which are analogous to background points of other models such as Maxent. Parameters for the dummy points are specified in the fit. Dummy points can take a certain distribution through the region included in the model of binomial or stratified, which is more regularly drawn over space. A certain number of dummy points can be chosen for each group or type included in the model. These randomly distributed dummy points act as pseudo-absences as they correspond to absences in the analogous logistic regression, and this can be used to approximate the fit of the point process likelihood. The larger the number of dummy points used the more closely approximately the point process is, and so the lower the se_numerical_proportion should be. However, this value can also be affected by how well the model fits the data.
+The columns are firstly the coefficient value and then the standard error of that as well as the high and low 95% confidence intervals. A significance score of one to three asterisks are given based on the CIs. P and Z values are also given. The last column is the se_numerical_proportion column which gives the percentage of standard error that is due to numerical uncertainty. Numerical uncertainty is due to the distribution and number of dummy points. Please refer to part 1 of this tutorial for an explanation of any of these parameters.
 
 ## Some Common Problems
 
-At this point, you make happen across an error or warning when trying to fit the model or produce a summary of the model. I have noted these down and their solutions below.
+At this point, you make happen across an error or warning when trying to fit the model or produce a summary of the model. I have noted some of these and their solutions below.
 
-### Fitting Package 
+### Fitting Package
 
-There is a parameter of fitting package, which identifies the fitting package of the logistic regression. We have set this to 'glmnet' as this fitting package gives more stability. If the fit is not running, check this parameter is set to 'glmnet' and not 'glm'.
+There is a parameter of fitting package, which identifies the fitting package of the logistic regression. The package 'glm' is the main fitting package. It is the standard way to fit a logistic regression. However, this package often fails when there are more dummy points than presences. However, if the glm package works for your dataset it is highly recommended to use that package.
 
-### NAs in Summary 
+The 'glmnet' package, importantly, uses shrinkage to force some coefficients to 0. In our model, we force the glmnet package to do a standard regression without the shrinkage. This gives it more stability. If the fit is not running, check this parameter is set to 'glmnet' and not 'glm'.
 
-NAs in the summary often occur when a time limit has been provided. In this case, running the summary without the time limit parameter should fix the issue. However at times NAs can occur in groups that have very few individuals or when the individuals of two groups or to a covariate has no range overlap whatsoever. This can create problems in the model as it cannot give a interaction or beta coefficient when there is no overlap. In these cases, think about combining or removing groups.
+### Binary covariates 
 
-### Numerical Error and Dummy Points 
+As mentioned previously, the model does not work well if you have binary covariates. It is possible to smooth covariates so they are no longer binary. However, if you must use binary covariates in the model, call parameter [use_regularisation = TRUE]{.underline} in the fit of the model.
+
+This allows the glmnet package to use some shrinkage, putting some coefficients to 0. As there is quasi-regularity in the fit now, when binary covariates have cells either 0 or 1, the model is now able to distinguish where a 0 might occur.
+
+```{r}
+use_regularisation = TRUE 
+```
+
+### Duplicate Points Warning
+
+If there are points with the same coordinates in your data (duplicate points), you will get a warning when attempting to fit the package. This may cause problems down the track, so it is better to resolve it at this point. The best way to do this is apply a jitter to your points (all points or just duplicated points), with an amount less than the amount of the error in coordinate sampling. Eg. If your error in sampling coordinates was 5, give duplicated points a jitter of 2.5 so that these are all moved randomly 2.5 units.
+
+### Numerical Error and Dummy Points
 
 The numerical uncertainty (se_numerical_proportion) is the portion of the standard error on the estimates that is due to the dummy points. It is the It tends to zero as you increase the number of dummy points. Theoretically, the way this works is that the variance-covariance matrix of error can be split into two \\Sigma = \\Sigma_1 + \\Sigma_2, where \\Sigma_1 depends only on the dummy distribution and \\Sigma_2 depends on the fitted parameter \\theta. The numerical uncertainty is computed by using \\Sigma_1. 
 
 So, increasing the dummy points can reduce the numerical uncertainty, however if the number of dummy points are increased too much, then the numerical methods break down. Remember, the set number of dummy points is for each type in the model. Generally, a max dummy point of 10e4 or 10e5 will reduce numerical uncertainty well, and many more dummy points than this will start to impact the regression methods.
+
+### Bad_alloc
+
+A bad_alloc error can appear when memory usage is too high. If possible, drop the number of dummy points or reduce the number of groups. Otherwise, you can use high powered computing software that allows for high memory usage.
+
+### NAs in Summary
+
+NAs occur when there are too many species and too many individuals. As the computation of the sigma matrix of the CIs is not possible due to time limits we approximate it in the model. To do this, we do not consider all of the points but consider a sub-window of the whole window. On the sub-window, the sigma is computed. This is done on multiple sub-windows, and then the average sigma matrix is taken. However, if we have non-homogenous groups, a sub-window may have no individuals and therefore the sigma matrix gives an NA resulting in an overall NA. This is why NAs occur in groups that have very few individuals or an extremely range-restricted group.
+
+Most often in these cases, it is due to a time_limit parameter being given. Do not give this parameter, and let the summary run its whole time and this increases the draws of the sub-windows. We can also increase the number of sub-windows in the summary. If this does not solve the error, think about about combining or removing groups.
+
+### Debug = TRUE
+
+If you are having problems running the summary, add parameter debug = TRUE to the summary function. This will show at which part of the summary the error is occurring.
+
+consider points on edge of window then fit
