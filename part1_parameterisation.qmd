@@ -71,15 +71,26 @@ window <- ppjsdm::Rectangle_window(c(0,400), c(0,400))
 The short-range interaction radius values and potential shape are described by the short-range and model parameter respectiively. These are the more complex parameters, and are important, as all outputs of the model are held to the set short-range radii. The short-range interaction radii are the typical distances from an individual where the likelihood of finding other individuals is affected. Therefore, at the set radii the magnitude of effect of an individual on the focal individual is halved. The shape of interaction potential expresses how the likelihood of finding another individuals changes with distance. We can have a look at the different interaction potential shapes we can set:\
 
 ```{r}
-possible_model <- c("square_exponential", "exponential", "square_bump", "bump", "Geyer")
-possible_short <- seq(from = 1, to = 20, length.out = 50) 
-df <- expand.grid(short = possible_short, model = possible_model) #creating dataframe with possible values
-df$potentials <- df$model
+#Exponential
+curve(exp(-x * log(2) / R), 0, 2 * R_2, ylab = "", xlab = "", ylim = c(0, 1), col = "#3B99B1",lwd = 3)
 
-ggplot(df) + geom_point(aes(x = short, y = y, colour = potentials))
+#Square exponential
+curve(exp(-x * x * log(2) / (R * R)), 0, 2 * R_2, col = "#7CBA70", lwd = 3, add = TRUE) 
+
+#Bump 
+curve(1 - exp(-R * R * log(2) / (x * x)), 0, 2 * R_2, col = "#F5191C", lwd = 3, add = TRUE)
+
+#Sqaure bump
+curve(1 - exp(-R_1 * R_1 * log(2) / (x * x)), 0, 2 * R_2, col = "#E78F0A", lwd = 3, add = TRUE)
+
+#Geyer/step
+curve(ifelse(x >= 0 & x <= R, 1, 0), 0, 2 * R_2, col = "#111111", lwd = 3, add = TRUE)
+
 ```
 
-The shapes of the interaction potential is referred to as the 'model', and these can be square exponential, exponential, square bump, bump and Geyer. Each shape shows that the affect of another individual may decreases smoothly in exponential or sharply as in square exponential with distance.
+The blue line gives the exponential shape, the green line the square-exponential, the red the bump, the orange the square-bump and lastly the black line gives the Geyer or step function.
+
+Each shape shows that the affect of another individual. This may decreases smoothly in exponential or sharply as in square exponential with distance.
 
 The parameterisation of both short-range parameters is done using AIC minimisation. This holds all other groups at a constant short-range radius, while the focal group is minimised over the a range of set short-range radii and the shapes of the potential.
 
