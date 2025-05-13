@@ -33,13 +33,19 @@ library(ggplot2)
 library(dplyr)
 ```
 
+There are also some helper functions that may be useful at some point, stored in the script 'helper_functions.R'. This script is available in the same repo as this Rmd. We can source this file now:
+
+```{r}
+source('helper_functions.R')
+```
+
 ## Load Data
 
 ```{r}
 
 ```
 
-If you are using forestGEO data, you can use the load_forestGeo function from the 'helper_functions.R' script. This will load the data from your file path, clean data by removing NA rows and adding a jitter to the data, check the range of the data, and had other useful parameters to remove dead trees and saplings.
+If you are using forestGEO data, you can use the load_forestGeo function from the 'helper_functions.R' script. This will load the data from your file path, clean data by removing NA rows and adding a jitter to the data, check the range of the data, and had other useful parameters to remove dead trees and saplings. This will also load the covariates.
 
 ## Load Environmental Data
 
@@ -191,7 +197,7 @@ Environmental covariates must be an 'im' object to be applied to this model. If 
 as.im.SpatRaster1()
 ```
 
-In addition to this function in the 'helper_functions. R' script, there are some other functions to convert covariates to im form. If your covariate is a matrix use function 'matrix_to_im'. If your covariate is in a rdata, asc or tif file, you can use function to_im to convert the covariate to an im object from the file path. Make sure to check your covariate is the correct range, ctrs projection and orientation for your window.
+In addition to this function in the 'helper_functions. R' script, there are some other functions to convert covariates to im form. If your covariate is a matrix use function 'matrix_to_im'. If your covariate is in raster, spatraster or rasterlayer form use make_covariates to convert the file path to im object. If your covariate is in a rdata, asc or tif file, you can use function to_im to convert the covariate to an im object from the file path. Make sure to check your covariate is the correct range, ctrs projection and orientation for your window.
 
 It is also useful to make sure your covariates vary by around the same amount. This is to make sure that an increase or decrease in environmental or beta coefficient value means the same in all covariates, and facilitates interpretation. In this case, I will make sure that all covariates vary by around one unit. This means I will divide the elevation covariate by 100, and take the log of the TWI or topographic wetness index covariate.
 
