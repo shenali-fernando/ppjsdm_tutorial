@@ -12,7 +12,7 @@ This series of qmd documents is designed to be a step-by-step tutorial in using 
 
 ## Install Package
 
-Before installing the ppjsdm package, please make sure RTools is downloaded (<https://cran.r-project.org/bin/windows/Rtools/>).
+Before installing the ppjsdm package. If you're using Windows please make sure RTools is downloaded (<https://cran.r-project.org/bin/windows/Rtools/>). This is not needed for Linux and Mac.
 
 ```{r}
 install.packages("devtools")
@@ -68,7 +68,7 @@ window <- ppjsdm::Rectangle_window(c(0,400), c(0,400))
 
 ### Short-range interaction radii (short-range) and potential shape (model)
 
-The short-range interaction radius values and potential shape are described by the short-range and model parameter respectiively. These are the more complex parameters, and are important, as all outputs of the model are held to the set short-range radii. The short-range interaction radii are the typical distances from an individual where the likelihood of finding other individuals is affected. Therefore, at the set radii the magnitude of effect of an individual on the focal individual is halved. The shape of interaction potential expresses how the likelihood of finding another individuals changes with distance. We can have a look at the different interaction potential shapes we can set: \
+The short-range interaction radius values and potential shape are described by the short-range and model parameter respectiively. These are the more complex parameters, and are important, as all outputs of the model are held to the set short-range radii. The short-range interaction radii are the typical distances from an individual where the likelihood of finding other individuals is affected. Therefore, at the set radii the magnitude of effect of an individual on the focal individual is halved. The shape of interaction potential expresses how the likelihood of finding another individuals changes with distance. We can have a look at the different interaction potential shapes we can set:\
 
 ```{r}
 possible_model <- c("square_exponential", "exponential", "square_bump", "bump", "Geyer")
@@ -125,7 +125,7 @@ for (p in plotlist) {
 
 Based on these graphs we can set the short-range radii values.
 
-To set the same short-range radii value for each group included in the model: \
+To set the same short-range radii value for each group included in the model:\
 
 ```{r}
 ngroup <- length(levels(configuration$types)) #number of groups included in the model 
@@ -133,6 +133,8 @@ short_range <- matrix(5, ngroup, ngroup) #fill a matrix of ngroup number of rows
 ```
 
 Looking at our AIC graphs, each group in the model has a slightly different short-range radii. We can set different short-range radii for each group in the model:
+
+set off-diagonals - take the mean here, but can take max/other ways
 
 ```{r}
 levels(configuration$types) #check groups in configuration 
@@ -150,7 +152,7 @@ for (i in 1:n) {
 short_range
 ```
 
-We can set the shape of the potential as well. There can only be one potential model set for a model fit.
+We can set the shape of the potential as well. There can only be one potential model set for a model fit (no theoretical reason - can make one potential per type)
 
 ```{r}
 model <- "exponential"
@@ -162,35 +164,18 @@ This model also allows for medium and long range interactions. When these are no
 
 The saturation parameter describes the maximum number of individuals a focal individual can interact with in its interaction radius. This is in line with Rajala et al., (2018) who say as resources are finite the neighbour must saturate. Therefore, we can choose a value between 10 and 20. If this is not specified, the saturation defaults to 2. To validate this choice, we can fit iterative models changing the saturation parameter, and choose a saturation parameter value dependent on what maximises the pseudo-likelihood.
 
+no theoretical reason to have one value
+
 ```{r}
 saturation <- 10 
 ```
 
 ### Covariates
 
-Environmental covariates must be an 'im' object to be applied to this model. If you have an older version of R, the package maptools provides functions to convert rasters and spatrasters into im form. However, in more recent versions of R, we can use the following code to convert spatrasters into im objects:
+Environmental covariates must be an 'im' object to be applied to this model. If you have an older version of R, the package maptools provides functions to convert rasters and spatrasters into im form. However, in more recent versions of R, we can use the as.im.SpatRaster1 function from 'helper_functions. R', as following:
 
 ```{r}
-as.im.SpatRaster1 <- function(X) {
-  X <- X[[1]]
-  rs <- terra::res(X)
-  e <- as.vector(terra::ext(X))
-  out <- list(
-    v = as.matrix(X, wide=TRUE)[nrow(X):1, ],
-    dim = dim(X)[1:2],
-    xrange = e[1:2],
-    yrange = e[3:4],
-    xstep = rs[1],
-    ystep = rs[2],
-    xcol = e[1] + (1:ncol(X)) * rs[1] + 0.5 * rs[1],
-    yrow = e[4] - (nrow(X):1) * rs[2] + 0.5 * rs[2],
-    type = "real",
-    units  = list(singular=units(X), plural=units(X), multiplier=1)
-  )
-  attr(out$units, "class") <- "unitname"
-  attr(out, "class") <- "im"
-  out
-}
+as.im.SpatRaster1()
 ```
 
 It is also useful to make sure your covariates vary by around the same amount. This is to make sure that an increase or decrease in environmental or beta coefficient value means the same in all covariates, and facilitates interpretation. In this case, I will make sure that all covariates vary by around one unit. This means I will divide the elevation covariate by 100, and take the log of the TWI or topographic wetness index covariate.
@@ -202,19 +187,21 @@ covariates <- list(elevation = elevation_im/100, TWI = TWI_im, aridity = aridity
 
 ```
 
+The last important note to make about covariates is that binary covariates do not work well in this model. Binary covariates are often used in ecology where we have areas where something appeared and areas where it didn't. This could be layers showing fire, land-use, roads or streams. In these cases, we can use functions like spatstat.explore::Smooth to allow the covariate to vary continuously and not as a binary.
+
 ### Dummy distribution
 
 There are four parameters relating to the dummy distribution: dummy_distribution, min_dummy = 1, dummy_factor, and max_dummy.
 
-We can think of dummy points acting similarly to background points in models such as Maxent. From a purely mathematical point of view, the dummy points are just an ad-hoc point process that allows us to compute an approximation of the likelihood which otherwise does not have a close form. Here is an analogy: in maths, when you want to approximate the value of a complex integral, you draw some random points, compute the function to integrate at those points, and deduce an approximation of the integral. The dummy points play the same kind of role here. In the original paper, they talk about dummy points in exactly this way: <https://people.math.aau.dk/~rw/Papers/lrlSPP.pdf>
+We can think of dummy points acting similarly to background points in models such as Maxent. From a purely mathematical point of view, the dummy points are just an ad-hoc point process that allows us to compute an approximation of the likelihood which otherwise does not have a close form. Here is an analogy: in maths, when you want to approximate the value of a complex integral, you draw some random points, compute the function to integrate at those points, and deduce an approximation of the integral. The dummy points play the same kind of role here. In the original paper (Flint et al., 2022), they talk about dummy points in exactly this way: <https://people.math.aau.dk/~rw/Papers/lrlSPP.pdf>
 
 From a more practical point of view, the dummy points can be interpreted as follows. In the GLM framework, we typically work with Gaussian, logistic, Poisson, etc, regressions. How can we fit a point process, which only contains point locations, with this framework? Well, we can add some randomly distributed dummy points, call these "absences" and then prove that the logistic regression (which models presence/absence) which uses those dummy points as absences gives an \*approximate\* fit of the point process, and the approximation gets better as we increase the number of dummy points. In this sense, you can call the dummy points "pseudo-absences", since they correspond to absences in an analogue logistic regression which approximates the true point process likelihood.
 
 Dummy points allow the point process model (presence-only) to be approximated by a logistic regression (presence/absence) which is much easier to solve.
 
-The dummy distribution parameter gives how the dummy points may be drawn in space. A 'binomial' distribution draws each point uniformly (i.e with same probability of landing in any given location) over the window. A 'stratified' distribution divides the window into n equally sized boxes and draws exactly one point in each of the boxes. While both distributions result in the same number of dummy points, the stratified points are more regularly distributed.
+Parameters for the dummy points are specified in the fit. Dummy points can take a certain distribution through the region included in the model of binomial or stratified. A 'binomial' distribution draws each point uniformly (i.e with same probability of landing in any given location) over the window. A 'stratified' distribution divides the window into n equally sized boxes and draws exactly one point in each of the boxes. While both distributions result in the same number of dummy points, the stratified points are more regularly distributed. However, when the window is oddly shaped such as Australia-shaped, stratified tends to bug, so fall back to a binomial distribution.
 
-The number of dummy points we set is for each group in the model, not an overall number. So, if we set 10 dummy points, that is 10 dummy points per group included in the model. The min_dummy gives the minimum dummy points per group. The dummy_factor is the factor the maximum dummy points increase by. Therefore, if we set the dummy points as below, we would have 100 points per group in the model.
+The number of dummy points we set is for each group in the model, not an overall number. So, if we set 10 dummy points, that is 10 dummy points per group included in the model. The min_dummy gives the minimum dummy points per group. The dummy_factor is the factor the maximum dummy points increase by. Therefore, if we set the dummy points as below, we would have 100 points per group in the model. The larger the number of dummy points used the more closely approximately the point process is, and so the lower the se_numerical_proportion should be. However, this value can also be affected by how well the model fits the data.
 
 ```{r}
 dummy_distribution <- "stratified"
@@ -222,3 +209,15 @@ min_dummy <- 1
 dummy_factor <- 1e10
 max_dummy <- 1e2
 ```
+
+### nthreads 
+
+nthreads specifies the number of cores of the CPU R uses. This is defaulted to 1. However, most computers/laptops have a more capacity that this. We can increase nthreads to allow for more computational power.
+
+```{r}
+nthreads <- 4
+```
+
+### return_raw_fitting_data 
+
+This parameter is defaulted to FALSE. However if it is set to TRUE, it returns the raw fitting data before the glm has been done to produce standard errors, confidence intervals, etc. If you want to use your own glm fitting package to do this, you can extract the raw fitting data using the above parameter and give your package the coefficient matrix.
