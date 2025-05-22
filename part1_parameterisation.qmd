@@ -208,7 +208,21 @@ covariates <- list(elevation = elevation_im/100, TWI = TWI_im, aridity = aridity
 
 ```
 
-The last important note to make about covariates is that binary covariates do not work well in this model. Binary covariates are often used in ecology where we have areas where something appeared and areas where it didn't. This could be layers showing fire, land-use, roads or streams. In these cases, we can use functions like spatstat.explore::Smooth to allow the covariate to vary continuously and not as a binary.
+Another important note to make about covariates is that binary covariates do not work well in this model. Binary covariates are often used in ecology where we have areas where something appeared and areas where it didn't. This could be layers showing fire, land-use, roads or streams. In these cases, we can use functions like spatstat.explore::Smooth to allow the covariate to vary continuously and not as a binary.
+
+Lastly, for general good practice and to reduce instability in the models we need to check for colinearity in the covariates. This can be done in any way you prefer, but I have provided an example below:
+
+```{r}
+library(usdm)
+
+#need to use Raster or Spatraster objects here 
+rast_layers <- c(elevation, aridity, fire_r, TWI_log, uden_r)
+#If you get an Error: [rast] number of rows and/or columns do not match
+#use function terra::resample to make the rows the same 
+#eg.fire_r <- resample(fire, elevation) makes fire the same as elevation
+
+usdm::vifstep(rast_layers)
+```
 
 ### Dummy distribution
 
@@ -231,7 +245,7 @@ dummy_factor <- 1e10
 max_dummy <- 1e2
 ```
 
-### nthreads 
+### nthreads
 
 nthreads specifies the number of cores of the CPU R uses. This is defaulted to 1. However, most computers/laptops have a more capacity that this. We can increase nthreads to allow for more computational power.
 
@@ -239,6 +253,6 @@ nthreads specifies the number of cores of the CPU R uses. This is defaulted to 1
 nthreads <- 4
 ```
 
-### return_raw_fitting_data 
+### return_raw_fitting_data
 
 This parameter is defaulted to FALSE. However if it is set to TRUE, it returns the raw fitting data before the glm has been done to produce standard errors, confidence intervals, etc. If you want to use your own glm fitting package to do this, you can extract the raw fitting data using the above parameter and give your package the coefficient matrix.
