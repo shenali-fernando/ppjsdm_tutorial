@@ -65,11 +65,31 @@ The columns are firstly the coefficient value and then the standard error of tha
 
 At this point, you make happen across an error or warning when trying to fit the model or produce a summary of the model. I have noted some of these and their solutions below.
 
+### Misspecification of Parameters
+
+If parameters are misspecified in the fit you will see this warning message, and the interaction coefficient (alpha) matrix will be NULL.
+
+```         
+Warning message: from glmnet C++ code (error code -100); Convergence for 100th lambda value not reached after maxit=100000 iterations; solutions for larger lambdas returned  > coef(fit$alpha[[1]]) NULL
+```
+
+In this case, make sure that each group included in the model has a reasonable number of individuals and are not clustered in one area. Make sure that your set configuration matches with all other parameters specified. Lastly, try changing the parameters of model, short_range and saturation to get a balance that works for the point pattern in your data.
+
 ### Fitting Package
 
 There is a parameter of fitting package, which identifies the fitting package of the logistic regression. The package 'glm' is the main fitting package. It is the standard way to fit a logistic regression. However, this package often fails when there are more dummy points than presences. However, if the glm package works for your dataset it is highly recommended to use that package.
 
 The 'glmnet' package, importantly, uses shrinkage to force some coefficients to 0. In our model, we force the glmnet package to do a standard regression without the shrinkage. This gives it more stability. If the fit is not running, check this parameter is set to 'glmnet' and not 'glm'.
+
+### Missing Values in Covariates
+
+When there are missing values in covariates the model will not be able to run and this error message will appear:
+
+```         
+Error in (function (x, y, family = c("gaussian", "binomial", "poisson",  :    x has missing values; consider using makeX() to impute them In addition: Warning message: In fit_gibbs(gibbsm_data_list, fitting_package = fitting_package,  :   Some NA values detected in regression matrix; indices: 7514759876007608761176127617761876377712
+```
+
+In these cases, check the covariates have a value for each pixel cell.
 
 ### Binary covariates
 
@@ -80,22 +100,6 @@ This allows the glmnet package to use some shrinkage, putting some coefficients 
 ```{r}
 use_regularisation = TRUE 
 ```
-
-### Error Message: Same number of points 
-
-You may get this error message at the summary.
-
-```         
-Error: The dummy points and the independent draw of a stratified binomial point process should have the same number of points. This could be due to NA values on the covariates, causing some of the dummy points to be removed on the draws. To solve this, either subset the window to locations where the covariates are non-NA, or avoid dummy points distributed as a stratified point process.
-```
-
-When the model fits it takes one draw of the stratified dummy points. When the model computes the summary it takes another draw of the stratified dummy points. These two draws **must** have the same number of points and be independent of each other or else the computation of the summary cannot work. This is as we are looking at the distances between dummy points to understand error.
-
-The stratified dummy distribution (default) splits the observation window into quadrants and simulates one dummy point per quadrant. If the covariate has an NA value where the dummy point is, the dummy points becomes an NA and is removed, therefore we have a different number of points in the two draws and the computation cannot happen.
-
-Therefore, every cell in your covariates must be filled - there **cannot** be NA values. To fill in NA values in covariates, you can take a mean of the cells around the NA cell, extrapolation of the data, or sample the covariate again. Either way, this NA value **must** be filled.
-
-However, this error can occur when there are no NA values in your covariate. In this case, you might be using a non-square or non-rectangular window and therefore must use the binomial dummy distribution instead.
 
 ### Duplicate Points Warning
 
@@ -120,11 +124,3 @@ Most often in these cases, it is due to a time_limit parameter being given. Do n
 ### Debug = TRUE
 
 If you are having problems running the summary, add parameter debug = TRUE to the summary function. This will show at which part of the summary the error is occurring.
-
-consider points on edge of window then fit
-
-### R Session Aborted
-
-The R session crashes when the virtual memory is filled. This usually occurs when there has been a misspecification in any part of the modelling if have covered. Therefore, check for errors such as in specifying the types or coordinates in the configuration, and other parameter errors.
-
-### 
