@@ -119,7 +119,7 @@ as.im.SpatRaster1 <- function(X) {
   )
   attr(out$units, "class") <- "unitname"
   attr(out, "class") <- "im"
-  out
+  return(out)
 }
 
 
@@ -146,58 +146,12 @@ matrix_to_im <- function(mat, xrange, yrange, scale = TRUE) {
                     yrange = yrange)
 }
 
-
-# Make covariates in `im` format from their paths
-make_covariates <- function(covariates_path) {
-  
-  # Temporary fix to spatstat issues: rewrite maptools::as.im.RasterLayer
-  # with fixed namespaces...
-  as.im.RasterLayer <- function (from, factor.col.name = NULL)
-  {
-    if (!requireNamespace("spatstat", quietly = TRUE))
-      stop("package spatstat required for coercion")
-    if (!requireNamespace("raster", quietly = TRUE))
-      stop("package raster required for coercion")
-    if (!raster::hasValues(from))
-      stop("values required in RasterLayer object")
-    if (raster::rotated(from)) {
-      stop("\n Cannot coerce because the object is rotated.\n Either coerce to SpatialPoints* from\n or first use the \"rectify\" function")
-    }
-    rs <- raster::res(from)
-    orig <- bbox(from)[, 1] + 0.5 * rs
-    dm <- dim(from)[2:1]
-    xx <- unname(orig[1] + cumsum(c(0, rep(rs[1], dm[1] - 1))))
-    yy <- unname(orig[2] + cumsum(c(0, rep(rs[2], dm[2] - 1))))
-    val <- raster::values(from)
-    if (is.factor(from)) {
-      lev <- levels(from)[[1]]
-      if (!is.null(factor.col.name)) {
-        if (factor.col.name %in% colnames(lev)) {
-          factor.col <- which(colnames(lev) == factor.col.name)
-        }
-        else {
-          stop("'factor.col.name' is not a column name of the raster 'from'")
-        }
-      }
-      else {
-        factor.col <- length(lev)
-      }
-      val <- factor(val, levels = lev$ID, labels = lev[[factor.col]])
-    }
-    dim(val) <- dm
-    val <- spatstat.geom::transmat(val, from = list(x = "-i", y = "j"),
-                                   to = "spatstat")
-    im <- spatstat.geom::im(val, xcol = xx, yrow = yy)
-    return(im)
-  }
-  
-}
   
 
 # Convert a covariate to `im` object from its path
 covariate_path_to_im <- function(covariate_path, scale = TRUE) {
   extension <- tolower(tools::file_ext(covariate_path))
-  if(extension == "rdata") {
+  if(extension %in% c("rdata", "rda")) {
     # Load whatever is in the RData
     before <- c(ls(), "before")
     load(covariate_path)
