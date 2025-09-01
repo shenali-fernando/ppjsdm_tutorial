@@ -12,7 +12,11 @@ This series of qmd documents is designed to be a step-by-step tutorial in using 
 
 ## Install Package
 
-Before installing the ppjsdm package. If you're using Windows please make sure RTools is downloaded (<https://cran.r-project.org/bin/windows/Rtools/>). This is not needed for Linux and Mac.
+To get started we need to install the ppjsdm package. Ppjsdm needs a C++ complier to work. Therefore, Windows users must download RTools at: [https://cran.r-project.org/bin/windows/Rtools](https://cran.r-project.org/bin/windows/Rtools/). If RTools is downloaded make sure the version of RTools is compatible with your version of R (eg. RTools 4.5 = R 4.5).
+
+Linux and Mac users do not need RTools. However, Mac users should make sure that xcode and a Fortran complier is downloaded. Please refer to: <https://mac.r-project.org/tools/> (also make sure to check version compatibility).
+
+If download errors are still occurring make sure package Rcpp is downloaded and updated as well as other Rcpp packages (RcppArmadillo, RcppEigen, RcppProgress, RcppThread).
 
 ```{r}
 install.packages("devtools")
@@ -66,9 +70,11 @@ configuration <- Configuration(data$x, data$y, types = data$Species)
 plot(configuration)
 ```
 
+Note: If you get a warning message: There are duplicate points in the configuration, this may pose problems when trying to fit the model or run the summary. It is good practice to apply a jitter to make sure there are no duplicate points.
+
 ### Window
 
-The window gives the area the observed individuals exist in, and what (x, y) coordinates correspond into. In our dataset, the forest plot was 400m in length and 400m in width therefore we can set the window as such using the ppjsdm function. This can also be specified using spatstat im or owin objects.
+The window gives the area the observed individuals exist in, and what (x, y) coordinates correspond into. In our dataset, the forest plot was 400m in length and 400m in width therefore we can set the window as such using the ppjsdm function. This can also be specified using spatstat im or owin objects, and can be specified for non-rectangle windows.
 
 ```{r}
 window <- ppjsdm::Rectangle_window(c(0,400), c(0,400))
@@ -77,6 +83,8 @@ window <- ppjsdm::Rectangle_window(c(0,400), c(0,400))
 ### Short-range interaction radii (short-range) and potential shape (model)
 
 The short-range interaction radius values and potential shape are described by the short-range and model parameter respectiively. These are the more complex parameters, and are important, as all outputs of the model are held to the set short-range radii. The short-range interaction radii are the typical distances from an individual where the likelihood of finding other individuals is affected. Therefore, at the set radii the magnitude of effect of an individual on the focal individual is halved. The shape of interaction potential expresses how the likelihood of finding another individuals changes with distance. We can have a look at the different interaction potential shapes we can set:\
+
+curve(exp(-x \* log(2) / R), 0, 2 \* R_2, ylab = "", xlab = "", ylim = c(0, 1), col = "#3B99B1",lwd = 3)
 
 ```{r}
 #Exponential
@@ -126,7 +134,7 @@ for (h in levels(configuration$types)) {
   })
 }
 
-possible_short <- seq(from = 1, to = 15, length.out = 50) #possible short_range values
+possible_short <- seq(from = 1, to = 10, length.out = 50) #possible short_range values
 possible_model <- c("square_exponential", "exponential", "square_bump", "bump") #possible models
 df <- expand.grid(short = possible_short, model = possible_model) #creating dataframe with possible values
 df$aic <- to_optimize(df) #optimisation, run the created dataframe through the function
