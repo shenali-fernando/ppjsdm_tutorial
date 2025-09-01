@@ -28,7 +28,7 @@ plot_papangelou(fit, #the fit
 
 The important parameters to note here is the type. The type is the group that we wish to create a predicted conditional intensity map for. We want to drop the type from the configuration - this means that when the model is using the fitted coefficients to create the conditional intensity map, the locations of allindividuals of the configuration EXCEPT that of the type give information to create the map. Essentially, this means if Group A has strong repulsion from our type, we have this information of interaction and the location of individuals of Group A, but not the location of individuals of the type. The show parameter describes which group of individuals we want to overlay over the conditional intensity map. This is often the same as the type, as we wish to compare the predicted conditional intensity to that of the actual locations of the type, but may also be used to check if strong interactions can be qualitatively shown in the predicted map.
 
-The scale of the conditional intensity map is important to note. Values that are lower than -10, mean there is a zero likelihood of individuals of the type occurirng at that location. Therefore we can set the limits parameter to make sure this is not obscuring the prediction. \
+The scale of the conditional intensity map is important to note. Values that are lower than -10, mean there is a zero likelihood of individuals of the type occurirng at that location. Therefore we can set the limits parameter to make sure this is not obscuring the prediction.\
 
 ```{r}
  plot_papangelou(fit,
@@ -42,7 +42,7 @@ The scale of the conditional intensity map is important to note. Values that are
                 limits = c(-10, 0))
 ```
 
-## Conditional Area Under the ROC Curve (AUC) Score 
+## Conditional Area Under the ROC Curve (AUC) Score
 
 One qualitative way to describe how well the model is performing is using the AUC score. Although this score has its drawbacks, we can use it with reasonable confidence here to get an idea of how well the model is performing for each type included in the model.
 
@@ -77,7 +77,7 @@ This function compares the predicted conditional intensity map to that of the co
 conditional_auc(configuration. fit)
 ```
 
-## Comparison to Other Models 
+## Comparison to Other Models
 
 We can also compare our model to other models to understand if our model is doing better or worse. The main model of comparison we can use is the Poisson model. In this model, there are no interactions between individuals but there is environmental heterogeneity.
 
