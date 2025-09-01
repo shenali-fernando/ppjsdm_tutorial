@@ -4,7 +4,7 @@ format: html
 editor: visual
 ---
 
-# Tutorial Part 3: Visualisation of Results 
+# Tutorial Part 3: Visualisation of Results
 
 Now that we have a model fit and summary, we can start visualisation of results. The package ppjsdm contains three visualisation functions:
 
@@ -34,7 +34,7 @@ heat_map(fit_code,
          show_values = TRUE) 
 ```
 
-## Chord Diagram 
+## Chord Diagram
 
 Chord diagrams are a nice way to visualise alpha coefficients between pairs of the model output. Although informative and asethetic, the downside of these diagrams are that they become unreadable with many groups.
 
@@ -73,7 +73,7 @@ ppjsdm::box_plot("Fit 1" = fit_code, "Fit 2" = fit_code2,
 
 ## Other plots
 
-There are a wide variety of plots that can be created. You do not need to keep to the functions built into the package. To create other plots, we need to change the summary output into a dataframe. This function works inside the visualisation functions above, but we can extract it here as its own function:
+There are a wide variety of plots that can be created. You do not need to keep to the functions built into the package. To create other plots, we need to change the summary output into a dataframe. This function works inside the visualisation functions above, but we can use it alone to get to .....
 
 ```{r}
 make_df <- function(fit, 
