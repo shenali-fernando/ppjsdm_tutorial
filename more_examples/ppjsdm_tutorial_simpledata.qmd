@@ -1,0 +1,272 @@
+---
+title: "PPJSDM Tutorial"
+format: html
+editor: visual
+---
+
+# PPJSDM Tutorial
+
+## Set up
+
+### Load PPJSDM
+
+To get started we need to install the ppjsdm package. Ppjsdm needs a C++ complier to work. Therefore, Windows users must download RTools at: [https://cran.r-project.org/bin/windows/Rtools](https://cran.r-project.org/bin/windows/Rtools/). If RTools is downloaded make sure the version of RTools is compatible with your version of R (eg. RTools 4.5 = R 4.5).
+
+Linux and Mac users do not need RTools. However, Mac users should make sure that xcode and a Fortran complier is downloaded. Please refer to: <https://mac.r-project.org/tools/> (also make sure to check version compatibility).
+
+If download errors are still occurring make sure package Rcpp is downloaded and updated as well as other Rcpp packages (RcppArmadillo, RcppEigen, RcppProgress, RcppThread).
+
+```{r}
+#install.packages("devtools")
+library(devtools)
+
+#install_github("iflint1/ppjsdm")
+library(ppjsdm)
+
+plot(rppp())
+```
+
+### Load Packages
+
+There are a few packages ppjsdm draws from and those need to be loaded as well.
+
+```{r}
+#install.packages("spatstat") 
+#install.packages("ecespa")
+#install.packages("ggplot2")
+
+library(ecespa)
+library(ggplot2)
+library(spatstat)
+library(dplyr)
+```
+
+## Single-species Forest
+
+The model is best used when we know all occurrences in a given area. Therefore, fully-mapped forest plots where the location of all individuals in the plot are known are great datasets to use this model with. Fortunately, quite a few datasets already in R are fully-mapped forest datasets!
+
+To start with we can use the spruces dataset from the spatstat library. This is a classic dataset for use with spatial point pattern analysis. It is a dataset of 134 Norway spruce trees in a natural forest stand in Saxonia, Germany. There are no environmental covariates for this dataset and is a good example of how interactions between trees can be used to model spatial locations.
+
+In this case, we do not need to load any data. We can use the ppjsdm::Configuration function to look at the configuration of the points in space.
+
+```{r}
+configuration <- Configuration(spruces$x, spruces$y)
+plot(configuration)
+```
+
+### Parameterisation
+
+We can start to define the parameters that will be given to our model now.
+
+```{r}
+window <- Rectangle_window(c(0, 56), c(0, 38)) #sets the plot area or window
+
+nspecies <- length(levels(configuration$types)) #number of groups included in the configuration 
+
+short_range <- matrix(5, nspecies, nspecies) #fill a matrix of nspecies number of rows and columns with the chosen short-range interaction radius of 5 
+
+model <- "exponential" #interaction potential shape
+
+saturation <- 5 #number of pairwise interactions for each individuals to consider
+```
+
+We specify four parameters about dummy points. I'm not going to go into too much depth into how these work. Dummy points act as 'absences' in our model (similar to background points of Maxent). To compute the logistic-regression which gives us our estimates of interaction and environmental coefficients we need presences and absences. Point process are presence-only models. Therefore we approximate the logistic-regression using dummy points as psuedo-absences.
+
+```{r}
+dummy_distribution <- "stratified" #how the dummy points are distributed through space, other option is 'binomial' (random)
+min_dummy <- 1 #min number of dummy points 
+dummy_factor <- 1e10 #factor the maximum dummy points increase by
+max_dummy <- 1e3 #therefore, we have 1000 dummy points per group 
+```
+
+### Fit Model
+
+Now, we fit the model!
+
+```{r}
+set.seed(2) #set seed to get same results each time 
+
+fit_spruces <- ppjsdm::gibbsm(configuration, 
+                      window = window, 
+                      model = model,
+                      short_range = short_range,
+                      fitting_package = "glm", #fitting package of logistic regression 
+                      saturation = saturation,
+                      dummy_distribution = "stratified", #
+                      min_dummy = 1, dummy_factor = 1, 
+                      max_dummy = 10)
+
+fit_spruces$data_list$dummy
+```
+
+And we can compute the summary of the fit
+
+```{r}
+sum_spruces <- summary(fit_spruces, debug = T)
+sum_spruces
+```
+
+beta0_1 is the log-intensity of the spruces when there are no interactions. alpha1_1_1 is the interaction of spruces to itself. It is strongly and significantly negative, so there is strong repulsion of spruce trees.
+
+The confidence intervals are also given as is the pval. The se_numerical_proportion refers to the proportion of the standard error that is due to numerical uncertainty which occurs due to the dummy points.
+
+## Multi-Species Forest with Environmental Covariate
+
+That was a single-species forest stand. Most datasets will have multiple species and environment covariates. This is where our model is able to show its power by disentangling the interactions of multiple species and also their associations to environmental covariates.
+
+The data we will use comes from the swamp dataset. This is a dataset from the Savannah River, South Carolina USA. This dataset also has a history of use in spatial pattern analysis. There are 5 species (including an miscellaneous group) in the site.
+
+```{r}
+data(swamp) #load data
+head(swamp)
+```
+
+### Parameterisation
+
+To get started with the parameterisation, we first make the configuration. Now that we have species, we have to specify this as the 'types' in our configuration.
+
+```{r}
+#|fig-height: 10
+configuration <- Configuration(swamp$x, swamp$y, swamp$sp)
+plot(configuration)
+```
+
+The names of our species are:
+
+```{r}
+names <- c("FX" = "Carolina ash", 
+          "NS" = "Swamp Tupelo", 
+          "NX" = "Water tupelo", 
+          "OT" = "Other species", 
+          "TD" = "Bald cypress")
+```
+
+For our environmental covariate, it is believed that a horizontal unmeasured covariate is thought to drive the distribution. We can supply it like this:
+
+```{r}
+covariates <- list(horizontal = function(x, y) x / 100)
+```
+
+And set the other parameters:
+
+```{r}
+window <- ppjsdm::Rectangle_window(x_range = c(0, 50), 
+                                   y_range = c(0, 200)) #sets the plot area or window
+
+nspecies <- length(levels(configuration$types)) #number of groups included in the configuration 
+
+short_range <- matrix(5, nspecies, nspecies) #fill a matrix of nspecies number of rows and columns with the chosen short-range interaction radius of 5 
+
+model <- "exponential" #interaction potential shape
+
+saturation <- 5 #number of pairwise interactions for each individuals to consider
+```
+
+### Fit Model
+
+Now, we're ready to fit the model
+
+```{r}
+set.seed(2) #set seed to get same results each time 
+
+fit_swamp <- ppjsdm::gibbsm(configuration, 
+                      window = window, 
+                      model = model,
+                      short_range = short_range,
+                      fitting_package = "glm", #fitting package of logistic regression 
+                      saturation = saturation,
+                      covariates = covariates, 
+                      dummy_distribution = "stratified", #
+                      min_dummy = 1, dummy_factor = 1e10, 
+                      max_dummy = 1e3)
+
+#we can have a quick look at the coefficients 
+coef(fit_swamp)
+
+```
+
+And compute the summary
+
+```{r}
+sum_swamp <- summary(fit_swamp)
+sum_swamp
+```
+
+### Visualisation of Coefficient Estimates
+
+As you can see now that we have multiple species it has become harder to understand what the coefficient esimates are doing. There are a few functions in the ppjsdm package we have to do this!
+
+#### Alpha Coefficients
+
+```{r}
+ppjsdm::heat_map(fit = fit_swamp, 
+                 summ = sum_swamp,
+                 coefficient = "alpha", 
+                 show_sig = TRUE, 
+                 show_values = FALSE, 
+                 full_names = names)
+```
+
+```{r}
+box <- ppjsdm::box_plot(fit_swamp, 
+                 summ = sum_swamp, 
+                 coefficient = "alpha", 
+                 full_names = names, 
+                 which = "all", 
+                 text_size = 12)
+
+box + geom_hline(yintercept = 9.5, colour = "black", linetype = "dashed")
+```
+
+```{r}
+#| fig-height: 9
+#| fig-width: 10
+ppjsdm::chord_diagram_plot(fit_swamp, 
+                 summ = sum_swamp, 
+                 coefficient = "alpha", 
+                 full_names = names, 
+                 cex = 1.25,
+                 outward_facing_names = TRUE)
+```
+
+#### Beta Coefficients
+
+```{r}
+ppjsdm::box_plot(fit_swamp, 
+                 summ = sum_swamp, 
+                 coefficient = "beta", 
+                 full_names = names, 
+                 text_size = 12)
+```
+
+## Prediction
+
+Using the model we have fit in the previous parts of this tutorial, we can predict how likely an individual of a species is likely to occur in the current configuration. Prediction in our model is done by the log-Papangelou conditional intensity. We can decide what information to supply the model for prediction, and this will then create a map of predicted intensity conditional on the information given.
+
+For example, I would like to know how well the model is able to predict occurrences of TD or Bald cypress in the current configuration of points in the site. I set the type (focal group) in a TD. I then set 'drop_type_from_configuration = TRUE', this means that the model is working with the fitted model coefficients, the environmental covariate, and all the locations of all individuals **except** that of bald cypress.
+
+With this we can qualitatively understand model performance. The points are actually occurrences and the background colour is the prediction conditional intensity with purple the highest likelihood of the individual occurring at that area.
+
+```{r}
+plot_papangelou(fit_swamp, #the fit 
+                window = window, #window of the plot 
+                type = "TD", #the focal species 
+                type_description = "Focal Group",
+                use_log = TRUE, 
+                drop_type_from_configuration = TRUE, 
+                show = "TD", 
+                legend_title = "Conditional Intensity")
+```
+
+We can also look at this for another species, FX or Carolina Ash.
+
+```{r}
+plot_papangelou(fit_swamp, #the fit 
+                window = window, #window of the plot 
+                type = "FX", #the focal species 
+                type_description = "Focal Group",
+                use_log = TRUE, 
+                drop_type_from_configuration = TRUE, 
+                show = "FX", 
+                legend_title = "Conditional Intensity")
+```
