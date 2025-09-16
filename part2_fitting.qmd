@@ -63,7 +63,7 @@ The columns are firstly the coefficient value and then the standard error of tha
 
 ## Some Common Problems
 
-At this point, you make happen across an error or warning when trying to fit the model or produce a summary of the model. I have noted some of these and their solutions below.
+At this point, you make happen across an error or warning when trying to fit the model or produce a summary of the model. I have noted some of these and their solutions below. If an issue that is not noted below occurs please create an issue on this Github repo ([https://github.com/shenali-fernando/ppjsdm_tutorial](https://github.com/shenali-fernando/ppjsdm_tutorial/tree/main)) or the package Github (<https://github.com/iflint1/ppjsdm>), or contact directly through email (shenalidfernando\@gmail.com, shenali.fernando.1\@unimelb.edu.au).
 
 ### Misspecification of Parameters
 
