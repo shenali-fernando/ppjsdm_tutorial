@@ -1,0 +1,219 @@
+---
+title: "BCI 1ha Vignette"
+format: html
+editor: visual
+---
+
+## BCI 1-ha Vignette
+
+This vignette goes through how to run the ppjsdm model for a 1-ha subset of the Barro Colorado Island (BCI) Forest Dynamics Plot. This plot was the first forest dynamics site of it's kind, and the first census was completed in 1983. Since its establishment the plot has been studied extensively, especially in regards to forest dynamics.
+
+BCI is a 50-ha plot and contains around 300,000 trees of around 300 species. This number of individuals, species and the area of the plot mean that running our model, ppjsdm, on the whole of BCI would require a supercomputer. In order to get the model running on the BCI dataset on our own computers, we can take a subsection of the BCI data.
+
+```{r}
+library(ppjsdm)
+library(dplyr)
+library(spatstat)
+```
+
+### Load and clean data
+
+The BCI data is freely available on the ForestGEO website: <https://forestgeo.si.edu/sites/neotropics/barro-colorado-island/bci-data/data-set>. Please go to the ForestGEO site to download the data.
+
+The bci.tree folder will download to give the tree location data for 6 censuses of the the BCI forest. The BCI.elev file is the elevation data for the plot. A species table (bci.spptable) is also given.
+
+For this vignette I will be using bci.tree8 data. So I can load that in as well as the elevation data.
+
+```{r}
+#| eval: false
+
+data <- load("bci.tree8.rdata")
+
+elevation <- read.table("/BCIelev.tsv")
+```
+
+Now that we have the data we need to do some data cleaning. Mainly, we need to subset the data so that we only have 1-ha of the BCI plot data.
+
+```{r}
+bci <- data %>% filter(between(gx, 0, 100)) %>% filter(between(gy, 0,100))
+
+range(bci$gx)
+range(bci$gy)
+```
+
+Nice! We also must make sure we only have alive trees in the dataset and get rid of na values.
+
+```{r}
+bci <- bci %>% filter(status == "A", na.rm = TRUE) 
+```
+
+We also want to make sure that we don't have any rare species in the data.
+
+```{r}
+bci %>% count(sp)
+```
+
+It looks like we have quite a few. The model will not be able to run when there is very few individuals in a species/type. To get a model to run we need at least 10 individuals in a group. However to get more certain coefficient 20 individuals is recommended.
+
+However, for simplicity in this vignette and also to get the model to run quickly, I will group all individuals with less than 70 into a miscellaneous category. I will also get rid of this miscellaneous category. When you are running the model for your own datasets, think about this threshold of how many individuals need to be included in a group and whether or not to exclude the miscellaneous group. Note that the time to run the summary of the model increases with the number of types specified in the model.
+
+```{r}
+bci <- bci %>%  
+  group_by(sp) %>% 
+  mutate(observation_count = n()) %>%
+  ungroup() %>% 
+  mutate(Species = if_else(observation_count > 50, sp, "MISC")) %>% 
+  filter(! Species == "MISC")
+
+bci %>% count(Species)
+```
+
+Okay, this looks better! We can now parameterise the model.
+
+### Parameters
+
+#### Configuration
+
+The configuration is the point location data we have that we want to model the patterns of. So we can use our data in the ppjsdm::Configuration function as so:
+
+```{r}
+configuration <- Configuration(bci$gx, #x-coords
+                               bci$gy, #y-coords
+                               types = bci$Species) #group or type names
+
+plot(configuration)
+```
+
+#### Environmental Covariates
+
+We can alos use the elevation data as environmental covariates to also explain the pattern of trees in our dataset. Covariates must be supplied in 'im' form to use in ppjsdm.
+
+```{r}
+class(elevation)
+```
+
+We need to subset the elevation data and then change a data.frame to an 'im' form.
+
+```         
+```
+
+And lastly specify it to the parameter
+
+```{r}
+covariates <- list(elevation = eleva)
+```
+
+#### Window
+
+We need to define the range of our configuration.
+
+```{r}
+#check the range  
+range(bci$gx) 
+range(bci$gy)
+```
+
+```{r}
+window <- ppjsdm::Rectangle_window(x_range = c(0,320),                                     
+                                   y_range = c(0,500)) 
+window
+```
+
+#### Short-range interaction radii (short-range) and potential shape (model)
+
+The short-range interaction radii has to be a matrix for each pair of groups in the data. We can do this by supplying a matrix. I will choose 4 as my interaction radius.
+
+```{r}
+ngroup <- length(levels(configuration$types)) 
+short_range <- matrix(4, ngroup, ngroup) 
+short_range
+```
+
+And I will choose exponential as the shape or model of my short-range potential.
+
+```{r}
+model <- "exponential"
+```
+
+#### Saturation
+
+The saturation parameter defines how many individuals a tree can interact with in its given radius.
+
+```{r}
+saturation <- 10
+```
+
+### Fitting Model
+
+Now we can fit the model:
+
+```{r}
+set.seed(2) #set seed to get same results each time   
+
+fit <- ppjsdm::gibbsm(configuration,                        
+                      window = window,                        
+                      model = "exponential",                       
+                      short_range = short_range,                    
+                      fitting_package = "glmnet",                      
+                      nthreads = 4, #how many cpu cores to use
+                      saturation = 10,                       
+                     # covariates = covariates,
+                      dummy_distribution = "stratified",
+                      min_dummy = 1,
+                      dummy_factor = 1e10,                        
+                      max_dummy = 1e3)
+```
+
+And get the summary (this may take a minute):
+
+```{r}
+sum <- summary(fit)
+sum
+```
+
+### Visualisation
+
+These are examples of some of the visualisation possible using ppjsdm
+
+```{r}
+heat_map(fit = fit,          
+         summ = sum,          
+         coefficient = "alpha",           
+         show_values = FALSE,           
+         show_sig = TRUE)
+```
+
+```{r}
+#| fig-height: 8
+
+ppjsdm::chord_diagram_plot(fit,                           
+                           summ = sum,                           
+                           cex = 1,                            
+                           legend_cex = 1,                           
+                           only_statistically_significant = FALSE, #show non-significant coefs
+                           include_self = TRUE, #should the within-group interactions be included
+                           outward_facing_names = TRUE)
+```
+
+For a coefficient plot, we can spilt which coefficient we want to see as within-group interactions only: 
+
+```{r}
+ppjsdm::box_plot(fit, 
+                 summ = sum, 
+                 coefficient = "alpha", 
+                 which = "within", 
+                 only_statistically_significant = FALSE,
+                 text_size = 11)
+```
+And between-group interactions only (and only statistically significant) for readability: 
+```{r}
+#| fig-height: 8
+ 
+ppjsdm::box_plot(fit, 
+                 summ = sum, 
+                 coefficient = "alpha", 
+                 which = "between", 
+                 only_statistically_significant = TRUE,
+                 text_size = 11)
+```
+
