@@ -9,13 +9,16 @@ editor: visual
 At this point we should have decided on all parameter values and assigned them:
 
 ```{r}
-configuration <- Configuration(data$x, data$y, types = data$Species)
-window <- ppjsdm::Rectangle_window(c(0,400), c(0,400))
-model <- "exponential"
-short_range <- short_range
+configuration <- Configuration(data2$x_jitter, data2$y_jitter, data2$Species) 
+plot(configuration)
+window <- ppjsdm::Rectangle_window(x_range = c(0,320), 
+                                   y_range = c(0,500))
+model <- "bump"
+ngroup <- length(levels(configuration$types)) #number of groups 
+short_range <- matrix(3.75, ngroup, ngroup)
 nthreads <- 4
 saturation <- 10 
-covariates <- list(elevation = elevation_im/100, TWI = TWI_im, aridity = aridity_im, u_density = u_density_im, fire = fire_im)
+covariates <- list(elevation = elevation)
 ```
 
 ## Model Fit
@@ -35,7 +38,7 @@ fit <- ppjsdm::gibbsm(configuration,
                       covariates = covariates,
                       dummy_distribution = "stratified",
                       min_dummy = 1, dummy_factor = 1e10, 
-                      max_dummy = 1e2)
+                      max_dummy = 1e3)
 
 ```
 
@@ -47,12 +50,15 @@ The fit of the model produces the alpha (interaction) and beta (environmental) c
 coef(fit)
 ```
 
+Here we can get the beta0, alpha and beta values as well as the parameterised values for short-range radius.
+
 ## Model Summary
 
 This only gives the coefficients however. To get the confidence intervals, standard error and z-values for the coefficients, we can run the summary. The summary will take much more time than the fit of the model to run. Therefore we can set a time limit on how long the summary can run for.
 
 ```{r}
-sum <- summary(fit, time_limt = 0.5)
+sum <- summary(fit, time_limit = 0.5)
+sum
 ```
 
 In the summary the first set of rows are the beta_0 for each group in the model. The beta0 coefficients for each group, when multiplied by the covariates, give the log-intensity (density) of each group if there were no interactions occurring between individuals. The alpha (alpha1) coefficients, or interaction coefficients, is produced for each pair of groups included in the model for the given short-range radii value. The magnitude and direction (negative or positive) of the interaction coefficient gives us the effect on the likelihood of finding two individuals of the two groups close to each other for the short-range interaction radii values. Therefore, an interaction coefficient of -1.5 would mean the log-likelihood of finding one individual of one group close to another individual of another group decreases by 1.5 when individuals are at the given interaction distance (R).
@@ -123,4 +129,15 @@ Most often in these cases, it is due to a time_limit parameter being given. Do n
 
 ### Debug = TRUE
 
-If you are having problems running the summary, add parameter debug = TRUE to the summary function. This will show at which part of the summary the error is occurring.
+If you are having problems running the summary, add parameter debug = TRUE to the summary function. This will show at which part of the summary the error is occurring.\
+
+### System Exactly Singular Error
+
+When running the summary this error can occur:
+
+```         
+Error in solve.default(S) : 
+  Lapack routine dgesv: system is exactly singular: U[15,15] = 0
+```
+
+This is occurring as we try to compute the variance-covariance matrix from the fitted coefficients. This error occurs as the fitted coefficients are a matrix of coefficients where all values are the same (most often all values are 0). To fix this issue, change the specification of the short-range interaction radii fitted. Make sure to check the specification for the medium- or long-range interaction radii if fitted. In particular, run an AIC to get the short-range radii into a range where the fit might work.
