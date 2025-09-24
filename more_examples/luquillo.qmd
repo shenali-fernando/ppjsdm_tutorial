@@ -1,0 +1,198 @@
+---
+title: "luquillo"
+format: html
+editor: visual
+---
+
+## Luquillo Vignette
+
+This vignette is a quick one-document tutorial of how to use the ppjsdm model to get results using the luquillo dataset. The Luquillo dataset from the Smithsonian Institution's ForestGEO Network. The [Luquillo Experimental Forest Plot](https://forestgeo.si.edu/sites/north-america/luquillo) is a long-term research site located in the tropical rainforest of Puerto Rico and was established in 1992. The Luquillo plot is 16-ha with dimensions 320 x 500 metres.
+
+### Load Data
+
+The Luquillo dataset is freely available through the fgeo.data package. We can load in the data:
+
+```{r}
+#devtools::install_github("forestgeo/fgeo.data")
+library(fgeo.data)
+data <- luquillo_stem_random
+head(data)
+```
+
+We can do some basic data-cleaning to get the data for alive trees and for census number 6.
+
+```{r}
+data <- data %>% 
+  filter(CensusID == 6) %>% 
+  filter(DFstatus == "alive", na.rm = TRUE)
+```
+
+We also need to check if there are any rare species. There are quite a few species with less than 20 individuals. The model can run with around 10 individuals in a group but the uncertainty will be large. For simplicity and to get some certain coefficients I will choose to put species with less than 20 individuals into a miscellaneous class and also remove the miscellaneous class.
+
+```{r}
+data <- data %>% group_by(sp) %>% 
+mutate(observation_count = n()) %>% 
+  ungroup() %>% 
+  mutate(Species = if_else(observation_count > 20, sp, "MISC")) %>% 
+  filter(! Species == "MISC")
+
+data %>% count(Species)
+```
+
+### Parameters
+
+#### Configuration
+
+We can make the configuration now. The configuration is the point location data we have that we want to model the patterns of.
+
+```{r}
+configuration <- Configuration(data$gx, data$gy, types = data$Species)
+plot(configuration)
+```
+
+We're getting the warning message: There are duplicate points in the configuration, this may pose problems when trying to fit the model or run the summary. It is good practice to apply a jitter to make sure there are no duplicate points.
+
+```{r}
+data2 <- data %>%
+  group_by(gx, gy) %>% #group by coordinate columns
+  mutate(
+    is_duplicated = n() > 1, #create column of TRUE/FALSE 
+    #new_column_name = if_else(condition, true, false): so condition=column name, if true=fill with, if false=fill with
+    x_jitter = if_else(is_duplicated, pmin(pmax(gx + runif(n(), -0.5, 0.5), 0), 320), gx), #create x_jitter column, pmax/pmin=sets max and min values
+    y_jitter = if_else(is_duplicated, pmin(pmax(gy + runif(n(), -0.5, 0.5), 0), 500), gy) #create y_jitter column
+  ) %>%
+  ungroup() %>% 
+  dplyr::select(-is_duplicated)
+
+
+# We have a configuration 
+configuration <- Configuration(data2$x_jitter, data2$y_jitter, data2$Species) 
+plot(configuration)
+```
+
+#### Environmental Covariates
+
+Nice! The luquillo data from the fgeo package also has some elevation data. We can load that in to use as environmental covariates to also explain the pattern of trees in our dataset.
+
+```{r}
+#| echo: false
+elevation <- luquillo_elevation
+class(elevation)
+```
+
+Covariates must be supplied in 'im' form to use in ppjsdm. We can change a list to an 'im' form as so:
+
+```{r}
+xrange <- c(0, luquillo_elevation$xdim)
+yrange <- c(0, luquillo_elevation$ydim)
+matr <- as.matrix(luquillo_elevation$mat)
+eleva <- spatstat.geom::im(matr, 
+                           xrange = xrange, 
+                           yrange = yrange)
+plot(eleva)
+```
+
+And then specify it as a parameter:
+
+```{r}
+covariates <- list(elevation = eleva)
+```
+
+#### Window 
+
+We need to define the range of our configuration.
+
+```{r}
+#check the range 
+range(data2$gx)
+range(data2$gy)
+```
+
+```{r}
+window <- ppjsdm::Rectangle_window(x_range = c(0,320), 
+                                   y_range = c(0,500))
+window
+```
+
+#### Short-range interaction radii (short-range) and potential shape (model)
+
+The short-range interaction radii has to be a matrix for each pair of groups in the data. We can do this by supplying a matrix. I will choose 4 as my interaction radius.
+
+```{r}
+ngroup <- length(levels(configuration$types))
+short_range <- matrix(3.75, ngroup, ngroup)
+short_range
+```
+
+And I will choose exponential as the shape or model of my short-range potential.
+
+```{r}
+model <- 'bump'
+```
+
+#### Saturation 
+
+The saturation parameter defines how many individuals a tree can interact with in its given radius.
+
+```{r}
+saturation <- 10
+```
+
+###  Fitting Model 
+
+Now we can fit the model:
+
+```{r}
+set.seed(2) #set seed to get same results each time 
+
+fit <- ppjsdm::gibbsm(configuration, 
+                      window = window, 
+                      model = "bump",
+                      short_range = short_range,
+                      fitting_package = "glmnet",
+                      nthreads = 4, #how many cpu cores to use
+                      saturation = 10,
+                      covariates = covariates,
+                      dummy_distribution = "stratified",
+                      min_dummy = 1, dummy_factor = 1e10, 
+                      max_dummy = 1e3)
+```
+
+And get the summary:
+
+```{r}
+sum <- summary(fit)
+sum
+```
+
+### Visualisation 
+
+These are examples of some of the visualisation possible using ppjsdm
+
+```{r}
+heat_map(fit = fit, 
+         summ = sum,
+         coefficient = "alpha", 
+         show_values = FALSE, 
+         show_sig = TRUE)
+```
+
+```{r}
+#| fig-height: 7
+ppjsdm::chord_diagram_plot(fit,
+                           summ = sum,
+                           cex = 1, 
+                           legend_cex = 1,
+                           only_statistically_significant = FALSE, #show non-significant coefs
+                           include_self = TRUE, #should the within-group interactions be included 
+                           outward_facing_names = TRUE) 
+```
+
+```{r}
+ppjsdm::box_plot(fit, 
+                summ = sum, 
+                coefficient = "beta", 
+                only_statistically_significant = FALSE, 
+                which = "all", 
+                text_size = 11)
+```
