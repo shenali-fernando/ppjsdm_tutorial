@@ -17,11 +17,11 @@ We use the function plot_papangelou to do prediction.
 ```{r}
 plot_papangelou(fit, #the fit 
                 window = window, #window of the plot 
-                type = "S", 
+                type = "SLOBER", 
                 type_description = "Focal Group",
                 use_log = TRUE, 
                 drop_type_from_configuration = TRUE, 
-                show = "S", 
+                show = "SLOBER", 
                 legend_title = "Conditional Intensity")
   
 ```
@@ -33,13 +33,37 @@ The scale of the conditional intensity map is important to note. Values that are
 ```{r}
  plot_papangelou(fit,
                 window = window,
-                type = "S", 
+                type = "CECSCH", 
                 type_description = "Focal Group",
                 use_log = TRUE, 
                 drop_type_from_configuration = TRUE, 
-                show = "S", 
+                show = "CECSCH", 
                 legend_title = "Conditional Intensity", 
                 limits = c(-10, 0))
+```
+
+\
+However if we change the scale too much we may lose where the distinction between low and high predictive power is for certain species.
+
+```{r}
+plot_papangelou(fit,
+                window = window,
+                type = "PREMON", 
+                type_description = "Focal Group",
+                use_log = TRUE, 
+                drop_type_from_configuration = TRUE, 
+                show = "PREMON", 
+                legend_title = "Conditional Intensity", 
+                limits = c(-10, 0))
+
+plot_papangelou(fit,
+                window = window,
+                type = "PREMON", 
+                type_description = "Focal Group",
+                use_log = TRUE, 
+                drop_type_from_configuration = TRUE, 
+                show = "PREMON", 
+                legend_title = "Conditional Intensity")
 ```
 
 ## Conditional Area Under the ROC Curve (AUC) Score
@@ -74,7 +98,7 @@ conditional_auc <- function(configuration, fit) {
 This function compares the predicted conditional intensity map to that of the configuration of the focal group to produce the conditional AUC score for the focal group.
 
 ```{r}
-conditional_auc(configuration. fit)
+conditional_auc(configuration, fit)
 ```
 
 ## Comparison to Other Models
@@ -119,35 +143,34 @@ We remove covariates from the parameters in this model. Now we have three models
 We can compare the AUC scores of these models.
 
 ```{r}
-conditional_auc(configuration. fit_poi)
+conditional_auc(configuration, fit_poi)
 ```
 
 ```{r}
-conditional_auc(configuration. fit_int)
+conditional_auc(configuration, fit_int)
 ```
 
-We can also compare these models by looking at the conditional intensity maps:
+We can also compare these models by looking at the conditional intensity maps. This can show us where and at what resolution a model does better.
 
 ```{r}
-cd_cond <- list()
-fits <-list(fit_env, fit_int, fit)
+slober <- list()
+fits <-list(fit_poi, fit_int, fit)
 
 for(i in seq_along(fits)){
  plot <- plot_papangelou(fits[[i]],
                 window = window,
-                type = "C/D", 
+                type = "SLOBER", 
                 type_description = "Focal Group",
                 use_log = TRUE, 
                 drop_type_from_configuration = TRUE, 
-                show = "C/D", 
-                legend_title = "Conditional Intensity", 
-                limits = c(-7, 0))
+                show = "SLOBER", 
+                legend_title = "Conditional Intensity")
   
-cd_cond[[i]] <- plot
+slober[[i]] <- plot
 }
 
-for (p in cd_cond) {
-  print(p)
+for (j in slober) {
+  print(j)
 }
 ```
 

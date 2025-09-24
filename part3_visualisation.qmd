@@ -21,55 +21,109 @@ To understand the interaction or alpha coefficients holistically we can use a he
 We can do this for the alpha or interaction coefficients:
 
 ```{r}
-heat_map(fit_code, 
+heat_map(fit = fit, 
+         summ = sum,
          coefficient = "alpha", 
          show_values = TRUE)
 ```
 
-And also for the beta or environmental coefficients:
+Or a cleaner version:
 
 ```{r}
-heat_map(fit_code, 
-         coefficient = "beta", 
-         show_values = TRUE) 
+heat_map(fit = fit, 
+         summ = sum,
+         coefficient = "alpha", 
+         show_values = FALSE, 
+         show_sig = TRUE)
 ```
 
 ## Chord Diagram
 
 Chord diagrams are a nice way to visualise alpha coefficients between pairs of the model output. Although informative and asethetic, the downside of these diagrams are that they become unreadable with many groups.
 
+The chord_diagram_plot function has a few parameters we use to get the best visualisation. 
+
 ```{r}
-ppjsdm::chord_diagram_plot(fit_code,
-                           summ = sum_code,
+#| fig-height: 8
+ppjsdm::chord_diagram_plot(fit,
+                           summ = sum,
                            cex = 1, 
                            legend_cex = 1,
                            only_statistically_significant = FALSE, #show non-significant coefs
-) 
+                           include_self = TRUE, #should the within-group interactions be included 
+                           outward_facing_names = TRUE) 
+```
+
+We can make this more professional by changing the names and assigned classes to the species. In this case, I will assign classes based on if the species is an understorey species or not. 
+```{r}
+#| fig-height: 10
+ppjsdm::chord_diagram_plot(fit,
+                           summ = sum,
+                           cex = 1.5, 
+                           legend_cex = 1,
+                           only_statistically_significant = FALSE, #show non-significant coefs
+                           include_self = TRUE, #should the within-group interactions be included 
+                           outward_facing_names = TRUE, 
+                           full_names = c("CASARB" = "Casearia arborea",
+                                          "CASSYL" = "Casearia sylvestris",
+                                          "CECSCH"= "Cecropia \n schreberiana", #for long names we can add a line break as so
+                                          "DACEXC" = "Dacryodes excelsa", 
+                                          "MANBID" = "Manilkara \n bidentata",
+                                          "PREMON" = "Prestoea acuminata",
+                                          "SCHMOR" = "Schefflera morototoni",
+                                          "SLOBER" = "Sloanea \n berteroana"),
+                           classes = c("CASARB" = "Understorey", 
+                                       "CASSYL" = "Understorey", 
+                                       "CECSCH" = "Understorey", 
+                                       "DACEXC" = "Canopy", 
+                                       "MANBID" = "Canopy", 
+                                      "PREMON" =  "Palm", 
+                                      "SCHMOR" = "Canopy", 
+                                      "SLOBER" = "Canopy"),
+                           classes_colours = c("Understorey" = "#ED90A4", 
+                                               "Palm" = "#C0AB52", 
+                                               "Canopy" = "#7EBA68")) 
 ```
 
 ## Coefficient Plot
 
-Coefficient plots are a good way to visualise beta and alpha coefficients with their confidence intervals.
+Coefficient plots are a good way to visualise beta and alpha coefficients with their confidence intervals. For alpha coefficients:
 
 ```{r}
-ppjsdm::box_plot(fit_code, 
-                summ = sum_code, 
-                coefficient = "beta", 
-                only_statistically_significant = FALSE, 
-                which = "all", 
-                text_size = 11)
-```
-
-Coefficient plots are a good way to compare models with different specifications or parameters.
-
-```{r}
-ppjsdm::box_plot("Fit 1" = fit_code, "Fit 2" = fit_code2, 
-                summ = list(sum_code, sum_code2),  
+#| fig-height: 8
+ppjsdm::box_plot(fit, 
+                summ = sum, 
                 coefficient = "alpha", 
                 only_statistically_significant = FALSE, 
                 which = "all", 
                 text_size = 11)
 ```
+
+For beta coefficients:
+
+```{r}
+ppjsdm::box_plot(fit, 
+                summ = sum, 
+                coefficient = "beta", 
+                only_statistically_significant = FALSE, 
+                which = "all", 
+                text_size = 11)
+```
+Both the box_plot and chord_diagram_plot functions have an involving parameter to specify which groups you wish to visualise. The box_plot function has a further parameter 'how' which specifies if only those types listed in 'involving' should be visualised, or interactions involving at least one of those types. 
+
+
+Coefficient plots are a good way to compare models with different specifications or parameters. As so: 
+
+```{r}
+#| eval: false
+ppjsdm::box_plot("Fit 1" = fit_1, "Fit 2" = fit2, 
+                summ = list(sum1, sum2),  
+                coefficient = "alpha", 
+                only_statistically_significant = FALSE, 
+                which = "all", 
+                text_size = 11)
+```
+
 
 ## Other plots
 
@@ -143,10 +197,11 @@ ggplot() +
                     y = from, 
                     color = sig), 
                 alpha = 0.8) +
-  scale_color_manual(values =c("grey80","black", "red"),
+  scale_color_manual(values =c("grey80","black"),
                      labels = c("Not significant", 
                                 "Significant"), 
                      labs(colour = "Key")) +
+  geom_vline(xintercept = 0, colour = "red") + 
   theme_bw()
 
 ```
@@ -154,30 +209,58 @@ ggplot() +
 We can make this interactive
 
 ```{r}
+#| warning: false
 library(plotly)
 
-
-scatterplot <- ggplot(data = df) + geom_beeswarm(aes(x = coefficient, 
-                                                     y = from, 
-                                                     color = sig, 
-                                                     text = paste("value:", coefficient, "<br>","from", from, "<br>", "to" , to)), alpha = 0.8) +
-  scale_color_manual(values =c("grey80","black", "red"),  
+scatterplot <- ggplot(data = df) + 
+  geom_beeswarm(aes(x = coefficient, 
+                    y = from, 
+                    color = sig, 
+                    text = paste("value:", coefficient, "<br>","from", from, "<br>", "to" , to)), alpha = 0.8) +
+  scale_color_manual(values =c("grey80","black"),  
                      labels = c("Not significant",
                                 "Significant"), 
-                     labs(colour = "Key")) +
+                     name = "Key") +
+  geom_vline(xintercept = 0, colour = "red") +
   theme_bw()
   
   scatterplot <- ggplotly(scatterplot, tooltip = "text")
   scatterplot
 ```
 
-And lastly, a violin plot:
 
+
+Alternatively we can use the inbuilt function. Please note this function is still undergoing development so may not work as expected (to get it to work please follow below example closely).
 ```{r}
-library(ggforce)
-ggplot(data = df)+
-     geom_violin(aes(x = coefficient, y = to, fill = sig))
+df2 <- make_summary_df(list(fit), #fit as list
+                summ = list(sum), #summary object as list
+                coefficient = "alpha", 
+                only_statistically_significant = TRUE, 
+                which = "all", 
+                full_names = c("CASARB" = "Casearia arborea", 
+                               "CASSYL" = "Casearia sylvestris",
+                               "CECSCH"= "Cecropia schreberiana", 
+                               "DACEXC" = "Dacryodes excelsa", 
+                               "MANBID" = "Manilkara bidentata",
+                               "PREMON" = "Prestoea acuminata",
+                               "SCHMOR" = "Schefflera morototoni",
+                               "SLOBER" = "Sloanea berteroana"),
+                compute_confidence_intervals = TRUE,
+                classes = c("CASARB" = "Understorey", 
+                            "CASSYL" = "Understorey", 
+                            "CECSCH" = "Understorey", 
+                            "DACEXC" = "Canopy", 
+                            "MANBID" = "Canopy", 
+                            "PREMON" =  "Palm", 
+                            "SCHMOR" = "Canopy", 
+                            "SLOBER" = "Canopy"), 
+                involving = NULL, #because we want all the types, note all parameters need to be filled 
+                how = "one") #leave as one does not impact 
 
+df2
 ```
 
-These don't look too impressive right now, but when there are many groups in your model (\>20), scatterplots can be very useful to understand the range of the coefficient outputs and how they compare to other model ranges.
+
+
+
+These don't look too impressive right now, but when there are many groups in your model (>20), scatterplots and other types of visualisation can be very useful to understand the range of the coefficient outputs and how they compare to other model ranges.
