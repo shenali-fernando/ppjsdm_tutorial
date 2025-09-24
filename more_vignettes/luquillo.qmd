@@ -98,7 +98,7 @@ And then specify it as a parameter:
 covariates <- list(elevation = eleva)
 ```
 
-#### Window 
+#### Window
 
 We need to define the range of our configuration.
 
@@ -116,7 +116,7 @@ window
 
 #### Short-range interaction radii (short-range) and potential shape (model)
 
-The short-range interaction radii has to be a matrix for each pair of groups in the data. We can do this by supplying a matrix. I will choose 4 as my interaction radius.
+The short-range interaction radii has to be a matrix for each pair of groups in the data. We can do this by supplying a matrix. I will choose 3.75 as my interaction radius.
 
 ```{r}
 ngroup <- length(levels(configuration$types))
@@ -124,13 +124,13 @@ short_range <- matrix(3.75, ngroup, ngroup)
 short_range
 ```
 
-And I will choose exponential as the shape or model of my short-range potential.
+And I will choose bumpas the shape or model of my short-range potential.
 
 ```{r}
 model <- 'bump'
 ```
 
-#### Saturation 
+#### Saturation
 
 The saturation parameter defines how many individuals a tree can interact with in its given radius.
 
@@ -138,7 +138,7 @@ The saturation parameter defines how many individuals a tree can interact with i
 saturation <- 10
 ```
 
-###  Fitting Model 
+### Fitting Model
 
 Now we can fit the model:
 
@@ -165,7 +165,7 @@ sum <- summary(fit)
 sum
 ```
 
-### Visualisation 
+### Visualisation
 
 These are examples of some of the visualisation possible using ppjsdm
 
