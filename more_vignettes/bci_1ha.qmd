@@ -338,7 +338,7 @@ ppjsdm::box_plot(fit,
                  text_size = 11)
 ```
 
-### Prediction and Performance 
+### Prediction and Performance
 
 #### Conditional Intensity Plots
 
