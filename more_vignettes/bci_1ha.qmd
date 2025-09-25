@@ -11,6 +11,8 @@ This vignette goes through how to run the ppjsdm model for a 1-ha subset of the 
 BCI is a 50-ha plot and contains around 300,000 trees of around 300 species. This number of individuals, species and the area of the plot mean that running our model, ppjsdm, on the whole of BCI would require a supercomputer. In order to get the model running on the BCI dataset on our own computers, we can take a subsection of the BCI data.
 
 ```{r}
+#| echo: false 
+
 library(ppjsdm)
 library(dplyr)
 library(spatstat)
@@ -30,13 +32,15 @@ For this vignette I will be using bci.tree8 data. So I can load that in as well 
 
 data <- load("bci.tree8.rdata")
 
-elevation <- read.table("C:/Users/shena/Desktop/datasets/bci/BCIelev.tsv")
+elevation <- read.table("BCIelev.tsv")
 ```
 
 Now that we have the data we need to do some data cleaning. Mainly, we need to subset the data so that we only have 1-ha of the BCI plot data.
 
 ```{r}
-bci <- data %>% filter(between(gx, 0, 100)) %>% filter(between(gy, 0,100))
+bci <- data %>%
+  dplyr::filter(between(gx, 0, 100)) %>% 
+  filter(between(gy, 0,100))
 
 range(bci$gx)
 range(bci$gy)
@@ -63,7 +67,7 @@ bci <- bci %>%
   group_by(sp) %>% 
   mutate(observation_count = n()) %>%
   ungroup() %>% 
-  mutate(Species = if_else(observation_count > 50, sp, "MISC")) %>% 
+  mutate(Species = if_else(observation_count > 70, sp, "MISC")) %>% 
   filter(! Species == "MISC")
 
 bci %>% count(Species)
@@ -142,25 +146,71 @@ range(bci$gy)
 ```
 
 ```{r}
-window <- ppjsdm::Rectangle_window(x_range = c(0,320),                                     
-                                   y_range = c(0,500)) 
+window <- ppjsdm::Rectangle_window(x_range = c(0,100),                                     
+                                   y_range = c(0,100)) 
 window
 ```
 
 #### Short-range interaction radii (short-range) and potential shape (model)
 
-The short-range interaction radii has to be a matrix for each pair of groups in the data. We can do this by supplying a matrix. I will choose 4 as my interaction radius.
+The short-range interaction radii has to be a matrix for each pair of groups in the data. We can do this running an AIC evalutation for each possible value of short-range radius and shape (for detailed explanation of these parameters please refer to ppjsdm_tutorial/part1_parameterisation.qmd). We then get a AIC value for each group in the model for all possible parameter values: 
+
+```{r}
+#| warning: false 
+
+plotlist <- list()
+
+for (h in levels(configuration$types)) {
+  to_optimize <- function(df) { #defines a new function that optimises each row in the dataframe df
+    sapply(seq_len(nrow(df)), function(i) { #loops from 1 to number of rows in df, i in function is the index to iterate through the rows of the dataframe 
+      set.seed(1)
+      fit <- ppjsdm::gibbsm(configuration[h], #create the fit
+                            window = window, 
+                            model = df$model[i],
+                            short_range = matrix(df$short[i]),
+                            saturation = 10,
+                            dummy_distribution = "stratified",
+                            min_dummy = 1, max_dummy =1e3,
+                            dummy_factor = 1e10,
+                            nthreads = 4, 
+                            fitting_package = "glmnet")
+      
+      fit$aic #take the aic value from the fit
+    })
+  }
+  
+  possible_short <- seq(from = 1, to = 20, length.out = 25) #possible short_range values
+  possible_model <- c("square_exponential", "exponential", "square_bump", "bump") #possible models
+  df <- expand.grid(short = possible_short, model = possible_model) #creating dataframe with possible values
+  df$aic <- to_optimize(df) #optimisation, run the created dataframe through the function
+  df$potentials <- df$model
+  
+
+  plot <- ggplot(df) + geom_point(aes(x = short, y = aic, colour = potentials)) + ggtitle(h)
+  
+  plotlist[[h]] <- plot
+}
+
+for (p in plotlist) {
+  print(p)
+}
+```
+
+Okay so each species in the model now has an AIC score. We can qualitatively assess these to decided what the best parameters values should be and then run different models with different short-range radius and shape. Comparing these models can help us understand what the best parameter values should be. There are ways to do this quantitatively. 
+
+Two species haven't been able to converge so we can just ignore these ones for now. We can check them separately after we run the model fit. All other species have been able to produce a optimal short-range radii value and shape. It seems most species have minimal AIC in either the exponential or square-bump models and these are often quite similar in AIC score. I will go with the square bump model now but we can validate this by fitting the model and comparing full model level AIC scores. 
+
+```{r}
+model <- "square_bump"
+```
+
+
+We specify the short-range interaction parameter by supplying a matrix. We can choose different AIC values for different species. In this case, for simplicity and because most species have an AIC score that is low and not widely changing at a short-range radius of 5, I will choose this as my parameter value.
 
 ```{r}
 ngroup <- length(levels(configuration$types)) 
-short_range <- matrix(4, ngroup, ngroup) 
+short_range <- matrix(5, ngroup, ngroup) 
 short_range
-```
-
-And I will choose exponential as the shape or model of my short-range potential.
-
-```{r}
-model <- "exponential"
 ```
 
 #### Saturation
@@ -181,7 +231,7 @@ set.seed(2) #set seed to get same results each time
 fit <- ppjsdm::gibbsm(configuration,                        
                       window = window,                        
                       model = "exponential",                       
-                      short_range = short_range,                    
+                      short_range = matrix(4, ngroup, ngroup) ,                    
                       fitting_package = "glmnet",                      
                       nthreads = 4, #how many cpu cores to use
                       saturation = 10,                       
@@ -192,7 +242,13 @@ fit <- ppjsdm::gibbsm(configuration,
                       max_dummy = 1e3)
 ```
 
-And get the summary (this may take a minute):
+We can have a quick look at the coefficients: 
+```{r}
+coef(fit)
+```
+
+
+And get the summary to get the confidence intervals (this may take a minute):
 
 ```{r}
 sum <- summary(fit)
@@ -201,19 +257,22 @@ sum
 
 ### Visualisation
 
-These are examples of some of the visualisation possible using ppjsdm
+These are examples of some of the visualisation possible using ppjsdm. For full examples of all parameters of the visualisation functions please refer to ppjsdm_tutorial/part3_visualisation.qmd
 
 ```{r}
+#| warnings: false 
+  
 heat_map(fit = fit,          
          summ = sum,          
          coefficient = "alpha",           
          show_values = FALSE,           
-         show_sig = TRUE)
+         show_sig = TRUE, 
+         scale_by = 0.3,
+         limits = c(-0.6, 0.6)) #set limits and the scale_by of the limits to get better visualisation 
 ```
 
 ```{r}
-#| fig-height: 8
-
+#| fig-height: 7
 ppjsdm::chord_diagram_plot(fit,                           
                            summ = sum,                           
                            cex = 1,                            
@@ -222,6 +281,22 @@ ppjsdm::chord_diagram_plot(fit,
                            include_self = TRUE, #should the within-group interactions be included
                            outward_facing_names = TRUE)
 ```
+
+
+We can exclude the within-species interactions to get a better look at what is happening between species: 
+```{r}
+#| fig-height: 7
+ppjsdm::chord_diagram_plot(fit,                           
+                           summ = sum,                           
+                           cex = 1,                            
+                           legend_cex = 1,                           
+                           only_statistically_significant = FALSE, #show non-significant coefs
+                           include_self = FALSE, #should the within-group interactions be included
+                           outward_facing_names = TRUE)
+```
+
+
+
 
 For a coefficient plot, we can spilt which coefficient we want to see as within-group interactions only:
 
@@ -237,8 +312,6 @@ ppjsdm::box_plot(fit,
 And between-group interactions only (and only statistically significant) for readability:
 
 ```{r}
-#| fig-height: 8
- 
 ppjsdm::box_plot(fit, 
                  summ = sum, 
                  coefficient = "alpha", 
@@ -246,3 +319,14 @@ ppjsdm::box_plot(fit,
                  only_statistically_significant = TRUE,
                  text_size = 11)
 ```
+
+
+And we can create a boxplot for the associations of the elevation covariate with species. We can see there isn't much association of species to elevation as all of the confidence intervals of the coefficients cross over zero. Perhaps if we ran this for the whole of the plot (where there is more data) we could get a signal. 
+```{r}
+ppjsdm::box_plot(fit, 
+                 summ = sum, 
+                 coefficient = "beta", 
+                 only_statistically_significant = FALSE,
+                 text_size = 11)
+```
+
