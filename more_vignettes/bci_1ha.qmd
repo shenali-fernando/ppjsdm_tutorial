@@ -281,7 +281,7 @@ ppjsdm::chord_diagram_plot(fit,
                            outward_facing_names = TRUE)
 ```
 
-We can exclude the within-species interactions to get a better look at what is happening between species:
+We can exclude the within-species interactions to get a better look at what is happening between species. We can also supply the full names of each species so we actually know what we're talking about:
 
 ```{r}
 #| fig-height: 7
@@ -291,7 +291,19 @@ ppjsdm::chord_diagram_plot(fit,
                            legend_cex = 1,                           
                            only_statistically_significant = FALSE, #show non-significant coefs
                            include_self = FALSE, #should the within-group interactions be included
-                           outward_facing_names = TRUE)
+                           outward_facing_names = TRUE, 
+                           full_names = c("acaldi" = "Acalypha diversifolia",
+                                          "alsebl" = "Alseis blackiana",
+                                          "cecrin" = "Cecropia insignis",
+                                          "des2pa" = "Desmopsis \n panamensis", #add line break with \n
+                                          "faraoc" = "Faramea occidentalis",
+                                          "gar2in" = "Garcinia recondita",
+                                          "hybapr" = "Pombalia prunifolia",
+                                          "mourmy" = "Mouriri myrtilloides",
+                                          "protpa" = "Protium panamense",
+                                          "protte" = "Protium \n tenuifolium",
+                                          "tet2pa" = "Protium \n stevensonii",
+                                          "tri2tu" = "Trichilia tuberculata"))
 ```
 
 For a coefficient plot, we can spilt which coefficient we want to see as within-group interactions only:
