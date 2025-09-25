@@ -153,7 +153,7 @@ window
 
 #### Short-range interaction radii (short-range) and potential shape (model)
 
-The short-range interaction radii has to be a matrix for each pair of groups in the data. We can do this running an AIC evalutation for each possible value of short-range radius and shape (for detailed explanation of these parameters please refer to ppjsdm_tutorial/part1_parameterisation.qmd). We then get a AIC value for each group in the model for all possible parameter values: 
+The short-range interaction radii has to be a matrix for each pair of groups in the data. We can do this running an AIC evalutation for each possible value of short-range radius and shape (for detailed explanation of these parameters please refer to ppjsdm_tutorial/part1_parameterisation.qmd). We then get a AIC value for each group in the model for all possible parameter values:
 
 ```{r}
 #| warning: false 
@@ -196,14 +196,13 @@ for (p in plotlist) {
 }
 ```
 
-Okay so each species in the model now has an AIC score. We can qualitatively assess these to decided what the best parameters values should be and then run different models with different short-range radius and shape. Comparing these models can help us understand what the best parameter values should be. There are ways to do this quantitatively. 
+Okay so each species in the model now has an AIC score. We can qualitatively assess these to decided what the best parameters values should be and then run different models with different short-range radius and shape. Comparing these models can help us understand what the best parameter values should be. There are ways to do this quantitatively.
 
-Two species haven't been able to converge so we can just ignore these ones for now. We can check them separately after we run the model fit. All other species have been able to produce a optimal short-range radii value and shape. It seems most species have minimal AIC in either the exponential or square-bump models and these are often quite similar in AIC score. I will go with the square bump model now but we can validate this by fitting the model and comparing full model level AIC scores. 
+Two species haven't been able to converge so we can just ignore these ones for now. We can check them separately after we run the model fit. All other species have been able to produce a optimal short-range radii value and shape. It seems most species have minimal AIC in either the exponential or square-bump models and these are often quite similar in AIC score. I will go with the square bump model now but we can validate this by fitting the model and comparing full model level AIC scores.
 
 ```{r}
 model <- "square_bump"
 ```
-
 
 We specify the short-range interaction parameter by supplying a matrix. We can choose different AIC values for different species. In this case, for simplicity and because most species have an AIC score that is low and not widely changing at a short-range radius of 5, I will choose this as my parameter value.
 
@@ -242,11 +241,11 @@ fit <- ppjsdm::gibbsm(configuration,
                       max_dummy = 1e3)
 ```
 
-We can have a quick look at the coefficients: 
+We can have a quick look at the coefficients:
+
 ```{r}
 coef(fit)
 ```
-
 
 And get the summary to get the confidence intervals (this may take a minute):
 
@@ -282,8 +281,8 @@ ppjsdm::chord_diagram_plot(fit,
                            outward_facing_names = TRUE)
 ```
 
+We can exclude the within-species interactions to get a better look at what is happening between species:
 
-We can exclude the within-species interactions to get a better look at what is happening between species: 
 ```{r}
 #| fig-height: 7
 ppjsdm::chord_diagram_plot(fit,                           
@@ -294,9 +293,6 @@ ppjsdm::chord_diagram_plot(fit,
                            include_self = FALSE, #should the within-group interactions be included
                            outward_facing_names = TRUE)
 ```
-
-
-
 
 For a coefficient plot, we can spilt which coefficient we want to see as within-group interactions only:
 
@@ -320,8 +316,8 @@ ppjsdm::box_plot(fit,
                  text_size = 11)
 ```
 
+And we can create a boxplot for the associations of the elevation covariate with species. We can see there isn't much association of species to elevation as all of the confidence intervals of the coefficients cross over zero. Perhaps if we ran this for the whole of the plot (where there is more data) we could get a signal.
 
-And we can create a boxplot for the associations of the elevation covariate with species. We can see there isn't much association of species to elevation as all of the confidence intervals of the coefficients cross over zero. Perhaps if we ran this for the whole of the plot (where there is more data) we could get a signal. 
 ```{r}
 ppjsdm::box_plot(fit, 
                  summ = sum, 
@@ -330,3 +326,71 @@ ppjsdm::box_plot(fit,
                  text_size = 11)
 ```
 
+### Prediction and Performance 
+
+#### Conditional Intensity Plots
+
+Using the model we have fit, we can predict how likely an individual is likely to occur. For simplicity, in this case we use our fitted coefficients to predict back onto the 1ha BCI. Prediction in our model is done by the log-Papangelou conditional intensity. We condition our model on all information (fitted alpha and beta coefficients, the environmental data and the locations of all trees in the plot). In particular, we condition the model on all tree locations of the plot **except** those of the species we are interested in.
+
+For example:
+
+```{r}
+plot_papangelou(fit, #the fit 
+                window = window, #window of the plot 
+                type = "alsebl", 
+                type_description = "Focal Group",
+                use_log = TRUE, 
+                drop_type_from_configuration = TRUE, #do not use the focal type location data when conditioning the model for predicition 
+                show = "alsebl", 
+                legend_title = "Conditional Intensity")
+```
+
+Another example:
+
+```{r}
+plot_papangelou(fit, #the fit 
+                window = window, #window of the plot 
+                type = "hybapr", 
+                type_description = "Focal Group",
+                use_log = TRUE, 
+                drop_type_from_configuration = TRUE, 
+                show = "hybapr", 
+                legend_title = "Conditional Intensity")
+```
+
+We can see in this example, the model is doing well in predicting the clustering in the top middle of the plot and to the right, but not doing well in predicting to the top left of the plot. In this way, we can qualitatively assess model performance.
+
+#### AUC Score
+
+One qualitative way to describe how well the model is performing is using the AUC score. Although this score has its drawbacks, we can use it with reasonable confidence here to get an idea of how well the model is performing for each type included in the model.
+
+```{r}
+conditional_auc <- function(configuration, fit) {
+  
+  for(focal in levels(types(configuration))) {
+    
+    conditional_intensity <- suppressWarnings(
+      ppjsdm::plot_papangelou(fit,
+                              type = focal,
+                              drop_type_from_configuration = TRUE,
+                              return_papangelou = TRUE,
+                              grid_steps = c(100, 100), 
+                              nthreads = 4))
+    
+    focal_configuration <- suppressWarnings(ppp(x = configuration[focal]$x,
+                                                y = configuration[focal]$y, 
+                                                window = owin(c(0, 400), c(0, 400))))
+    
+    cat(paste0("Focal species: ", focal, ", conditional AUC: ", 
+               auc(focal_configuration, conditional_intensity), ".\n"))
+  }
+}
+```
+
+This produces a conditional AUC score for each type in the model.
+
+```{r}
+conditional_auc(configuration, fit)
+```
+
+We can see that the species 'acaldi' is performing very well in our model, but the species 'faraoc' is not.
