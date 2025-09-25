@@ -1,0 +1,164 @@
+---
+title: "lansing"
+format: html
+editor: visual
+---
+
+## Lansing Vignette
+
+This vignette goes through how to run the ppjsdm model for the Lansing dataset. The lansing data come from an investigation of a 924 ft x 924 ft (19.6 acre) plot in Lansing Woods, Clinton County, Michigan USA by D.J. Gerrard. The data give the locations of 2251 trees and their botanical classification (into hickories, maples, red oaks, white oaks, black oaks and miscellaneous trees). The original plot size (924 x 924 feet) has been rescaled to the unit square. For reference 924 ft x 924 ft = 280 m x 280 m, which is now 1 x 1.
+
+```{r}
+library(ppjsdm)
+library(spatstat)
+library(spatat.data)
+library(plot.matrix)
+library(ggplot2)
+library(cowplot)
+library(dplyr)
+library(ggpubr)
+
+set.seed(1)
+```
+
+###  Load Data
+
+The Lansing data is part of the spatstat package:
+
+```{r}
+data(lansing)
+head(lansing)
+```
+
+###  Parameters
+
+So we can load it as a configuration and view:
+
+```{r}
+configuration <- as.Configuration(lansing)
+plot(configuration)
+```
+
+We can then plot the point configuration of the data, using all the data points.
+
+```{r}
+window <- ppjsdm::Rectangle_window(c(min(lansing$x), max(lansing$x)),
+                                   c(min(lansing$y), max(lansing$y)))
+print(window)
+
+#Doing this shows both x and y coordinates have a range from 0 to 1, so we can set the window 
+window <- ppjsdm::Rectangle_window(c(0,1), c(0,1))
+```
+
+### Basic fit
+
+WE can start by running a basic fit with just configuration and window for the dataset.
+
+```{r}
+fit <- ppjsdm::gibbsm(configuration, 
+                      window = window)
+summary(fit)
+```
+
+This dataset has 6 groups of species. There are intercepts for the 6 groups. All of these are significant.
+
+Alpha1_1_1 is the interaction coefficient for the first species with the first species = blackoak with blackoak. There are some interaction coefficients that are significant, for example hickory with both redoak and whiteoak show strong replusion. Maple and redoak also show strong replusion. Note, all significant interaction coefficients are negative.
+
+However, we have **a lot** of NAs. That means something has been misspecified in our model. So let's go back to the model parameters and try to specify something else. When not specified, the defaults are: short_range = 0.1, long_range = 0, saturation = 2. So let's try to change these.
+
+### Adding Short-range Parameters 
+
+We can set the interaction radius to 0.075 unit for all species because we assume that individuals would be interacting with others in a radius that where the effect of one individual of another halves at a distance of 0.075. We also specify that the shape or how the change of the effect of one individual on another is modelled by the shape of the square exponential.
+
+We can also set the saturation (or how many individuals that another interacts with) to 10.
+
+```{r}
+nspecies <- length(unique(configuration$types))
+short_range <- matrix(0.05, nspecies, nspecies) #set short-range interaction radii to 0.1
+saturation <- 10 
+model <- "square_exponential" 
+```
+
+```{r}
+fit <- ppjsdm::gibbsm(configuration, 
+                      window = window,
+                      model = model, 
+                      short_range = short_range,
+                      saturation = saturation)
+
+sum <- summary(fit)
+sum
+```
+
+Okay, no more NAs!
+
+### Adding Dummy Points 
+
+In our fit the SE numerical proportion ranges from alright to not amazing - hovering around 0.20. The SE numerical proportion is the amount of standard error due to the numerical computation of the likelihood. Introudcing more dummy points helps get a better coefficients and decreases error.
+
+First, specify the dummy distribution as stratified where dummy points are drawn more regularly over space.
+
+```{r}
+fit <- ppjsdm::gibbsm(configuration, 
+                      window = window,
+                      model = model, 
+                      short_range = short_range,
+                      saturation = saturation,
+                      dummy_distribution = "stratified")
+summary(fit)
+```
+
+SE numerical proportion is a little better by changing the distribution from uniform to stratified
+
+Next, we can change the number of dummy points to 5000. Note: The final number of dummy points per species is \`min(max(N \* dummy_factor, min_dummy), max_dummy).
+
+```{r}
+fit <- ppjsdm::gibbsm(configuration, window = window, 
+                      dummy_distribution = "stratified", 
+                      min_dummy = 1, dummy_factor = 1e10, 
+                      max_dummy = 5e3) #5000 dummy points 
+summary(fit)
+```
+
+5000 dummy points used; makes a really low se numerical proportion of under 0.05 for all coefficients.
+
+We can increase the dummy points to 10,000 dummy points per species.
+
+```{r}
+fit <- ppjsdm::gibbsm(configuration, 
+                      window = window,
+                      model = model, 
+                      short_range = short_range,
+                      saturation = saturation,
+                      dummy_distribution = "stratified", 
+                      min_dummy = 1, 
+                      dummy_factor = 1e10, 
+                      max_dummy = 1e4)
+sum <- summary(fit)
+sum
+```
+
+The SE numerical error is now very small. Now all the error in the coefficient estimates are from the variation in the actual dataset.
+
+### Visualisation 
+
+Lastly, some quick visualisation of the results
+
+```{r}
+ppjsdm::chord_diagram_plot(fit,                           
+                           summ = sum,                           
+                           cex = 1,                            
+                           legend_cex = 1,                           
+                           only_statistically_significant = FALSE, #show non-significant coefs
+                           include_self = TRUE, #should the within-group interactions be included
+                           outward_facing_names = TRUE)
+```
+
+```{r}
+ppjsdm::box_plot(fit, 
+                 summ = sum, 
+                 coefficient = "alpha", 
+                 which = "all", 
+                 only_statistically_significant = FALSE,
+                 text_size = 11)
+```
