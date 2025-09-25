@@ -116,7 +116,7 @@ window
 
 #### Short-range interaction radii (short-range) and potential shape (model)
 
-The short-range interaction radii has to be a matrix for each pair of groups in the data. We can do this by supplying a matrix. I will choose 3.75 as my interaction radius.
+The short-range interaction radii has to be a matrix for each pair of groups in the data. We can do this by supplying a matrix. I will choose 3.75 as my interaction radius. Please refer to ppjsdm_tutorial/part1_parameterisation.qmd for further short-range parameterisation details.
 
 ```{r}
 ngroup <- length(levels(configuration$types))
