@@ -14,6 +14,7 @@ BCI is a 50-ha plot and contains around 300,000 trees of around 300 species. Thi
 library(ppjsdm)
 library(dplyr)
 library(spatstat)
+library(terra)
 ```
 
 ### Load and clean data
@@ -29,7 +30,7 @@ For this vignette I will be using bci.tree8 data. So I can load that in as well 
 
 data <- load("bci.tree8.rdata")
 
-elevation <- read.table("/BCIelev.tsv")
+elevation <- read.table("C:/Users/shena/Desktop/datasets/bci/BCIelev.tsv")
 ```
 
 Now that we have the data we need to do some data cleaning. Mainly, we need to subset the data so that we only have 1-ha of the BCI plot data.
@@ -92,15 +93,42 @@ We can alos use the elevation data as environmental covariates to also explain t
 class(elevation)
 ```
 
-We need to subset the elevation data and then change a data.frame to an 'im' form.
-
-```         
-```
-
-And lastly specify it to the parameter
+First, let's get this elevation data into a raster format.
 
 ```{r}
-covariates <- list(elevation = eleva)
+elevation <- elevation[-1,] #get rid of first row because it is colnames
+
+elev_df <- data.frame( #make new df 
+  x = elevation$V1, 
+  y = elevation$V2, 
+  value = elevation$V3
+)
+
+elev_rast <- rast(elev_df)
+plot(elev_rast)
+```
+
+Remember that we used only 1ha of the data, now we need to subset the elevation data
+
+```{r}
+ crop_extent <- terra::ext(0, 100, 0, 100)
+ elev_cropped <- crop(elev_rast, crop_extent)
+ plot(elev_cropped)
+```
+
+Now to change a data.frame to an 'im' form. The 'as.im.SpatRaster1' function in the helper_functions.R file can do this for us.
+
+```{r}
+source("../helper_functions.R")
+
+elev_im <- as.im.SpatRaster1(elev_cropped)
+plot(elev_im)
+```
+
+And finally, specify the covariate to the parameter
+
+```{r}
+covariates <- list(elevation = elev_im)
 ```
 
 #### Window
@@ -157,7 +185,7 @@ fit <- ppjsdm::gibbsm(configuration,
                       fitting_package = "glmnet",                      
                       nthreads = 4, #how many cpu cores to use
                       saturation = 10,                       
-                     # covariates = covariates,
+                      covariates = list(elevation = elev_im),
                       dummy_distribution = "stratified",
                       min_dummy = 1,
                       dummy_factor = 1e10,                        
@@ -195,7 +223,7 @@ ppjsdm::chord_diagram_plot(fit,
                            outward_facing_names = TRUE)
 ```
 
-For a coefficient plot, we can spilt which coefficient we want to see as within-group interactions only: 
+For a coefficient plot, we can spilt which coefficient we want to see as within-group interactions only:
 
 ```{r}
 ppjsdm::box_plot(fit, 
@@ -205,7 +233,9 @@ ppjsdm::box_plot(fit,
                  only_statistically_significant = FALSE,
                  text_size = 11)
 ```
-And between-group interactions only (and only statistically significant) for readability: 
+
+And between-group interactions only (and only statistically significant) for readability:
+
 ```{r}
 #| fig-height: 8
  
@@ -216,4 +246,3 @@ ppjsdm::box_plot(fit,
                  only_statistically_significant = TRUE,
                  text_size = 11)
 ```
-
