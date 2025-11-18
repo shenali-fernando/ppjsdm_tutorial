@@ -98,9 +98,10 @@ Error in (function (x, y, family = c("gaussian", "binomial", "poisson",  :    x 
 In these cases, check the covariates have a value for each pixel cell.
 
 ### Error dimname(x)
-This error occurs when the short-range radii parameter is missepecified. Specifically, when the matrix of radii values has number of rows and columns that does not match the number of groups (types) included in the model. 
 
-```
+This error occurs when the short-range radii parameter is missepecified. Specifically, when the matrix of radii values has number of rows and columns that does not match the number of groups (types) included in the model.
+
+```         
 Error in dimnames(x) <- dn : 
   length of 'dimnames' [1] not equal to array extent
 ```
