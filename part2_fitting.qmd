@@ -99,13 +99,15 @@ In these cases, check the covariates have a value for each pixel cell.
 
 ### Binary covariates
 
-As mentioned previously, the model does not work well if you have binary covariates. It is possible to smooth covariates so they are no longer binary. However, if you must use binary covariates in the model, call parameter [use_regularisation = TRUE]{.underline} in the fit of the model.
+As mentioned previously, the model does not work well if you have binary covariates. It is possible to smooth covariates so they are no longer binary. However, if you must use binary covariates in the model, call parameter [use_regularisation = TRUE]{.underline} when fitting the model with 'gibbsm'.
 
 This allows the glmnet package to use some shrinkage, putting some coefficients to 0. As there is quasi-regularity in the fit now, when binary covariates have cells either 0 or 1, the model is now able to distinguish where a 0 might occur.
 
 ```{r}
 use_regularisation = TRUE 
 ```
+
+The use_regularisation (default set to FALSE) allows for lasso regularisation to occur in to the regression model (when computing the variance-covariance matrix). This parameter can also be use when wanting to shrink coefficients towards zero when there are many large coefficients occurring in the model, and will shift coefficients towards 0.
 
 ### Duplicate Points Warning
 
