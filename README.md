@@ -1,9 +1,11 @@
 # ppjsdm_tutorial
-This repo contains a four-part in-depth tutorial for using the ppjsdm package that contains the saturated pairwise interaction Gibbs points process model with an example dataset. We recommend starting with a simple example to get a feel for how the model works with a dataset, this can be found in the vignette 'Part0_simpledata'. This vignette runs through two relatively simple dataset, where one can easily fit the model. 
+This repo contains a four-part in-depth tutorial for using the ppjsdm package that contains the saturated pairwise interaction Gibbs points process model with an example dataset.
 
-Parts 1-4 of this tutorial shows how to apply this model to more complex datasets. These parts of the tutorial use the Smithsonian Institute's ForestGEO plot data. These are a global network of fully-mapped forest plots, where all censuses have been conducted in the same way and so the data for all plots have similar structure. As this model works best on fully-mapped, static datasets, the ForestGEO datasets are particularly useful. 
+We recommend starting with the vignette 'Part0_simpledata'. This vignettes gives an example of applying the model to simple datasets, where one can easily fit the model, in order to get a feel for how the model works.
 
-We also recommend reading the [paper](https://doi.org/10.1111/rssc.12596) that introduces this model. The PPJSDM_model_overview also gives notes on how the model works, a description of the model equation, and some notes on the model behaviour. 
+We also recommend reading the [paper](https://doi.org/10.1111/rssc.12596) that introduces this model. The PPJSDM_model_overview also gives a plain-language summary of the workings of the model, a description of the model equation, and some notes on model behaviour.
+
+Parts 1-4 of this tutorial shows how to apply this model to more complex datasets. These parts of the tutorial use the Smithsonian Institute's ForestGEO plot data. ForestGEO is a global network of fully-mapped forest plots, where all censuses have been conducted in the same way so that the data for all plots have a similar structure. As this model works best on fully-mapped, static datasets, the ForestGEO datasets are particularly useful. 
 
 Parts 1-4 of the tutorial are set out in this way: 
 
