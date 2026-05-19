@@ -79,7 +79,7 @@ If parameters are misspecified in the fit you will see this warning message, and
 Warning message: from glmnet C++ code (error code -100); Convergence for 100th lambda value not reached after maxit=100000 iterations; solutions for larger lambdas returned  > coef(fit$alpha[[1]]) NULL
 ```
 
-In this case, make sure that each group included in the model has a reasonable number of individuals and are not clustered in one area. Make sure that your set configuration matches with all other parameters specified. Lastly, try changing the parameters of model, short_range and saturation to get a balance that works for the point pattern in your data.
+In this case, make sure that each group included in the model has a reasonable number of individuals and are not clustered in one area. Make sure that your set configuration matches with all other parameters specified. Lastly, try changing the parameters of model, short_range, saturation, and use_regularisation to get a balance that works for the point pattern in your data.
 
 ### Fitting Package
 
