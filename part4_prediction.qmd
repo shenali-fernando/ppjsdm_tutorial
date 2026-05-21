@@ -68,37 +68,54 @@ plot_papangelou(fit,
 
 ## Conditional Area Under the ROC Curve (AUC) Score
 
-One qualitative way to describe how well the model is performing is using the AUC score. Although this score has its drawbacks, we can use it with reasonable confidence here to get an idea of how well the model is performing for each type included in the model.
+One qualitative way to describe how well the model is performing is using the AUC score. Although this score has its drawbacks, we can use it with reasonable confidence here to get an idea of how well the model is performing for each type included in the model. Conditional AUC underestimates when there is strong clustering effects. This is because we set `drop_type_from_configuration = TRUE`, meaning that all points of the focal type are dropped from configuration so that these points have to predicted from interspecific interactions. Often the strongest interaction is that within a species, but using this method this interaction is dropped leading to an #underestimation of AUC.
 
-We can use this function:
+We can use the function:
 
 ```{r}
-conditional_auc <- function(configuration, fit) {
+conditional_auc <- function(window, #window must be an object of class owin
+                            fit, 
+                            configuration){
   
-  for(focal in levels(types(configuration))) {
-    
+  df <- data.frame(type = character(), 
+                   auc = numeric())
+  
+  for(focal in levels(types(configuration))) { #for each type in the configuration 
+
     conditional_intensity <- suppressWarnings(
-      ppjsdm::plot_papangelou(fit,
+      
+      #documentation under plot_papangelou.default
+      ppjsdm::plot_papangelou(fit, #conditional the papangelou intensity on all information included in the fit (covariates, locations, estimated alpha and beta intensity)
                               type = focal,
-                              drop_type_from_configuration = TRUE,
-                              return_papangelou = TRUE,
-                              grid_steps = c(100, 100), 
-                              nthreads = 4))
+                              drop_type_from_configuration = TRUE, #the location of the type being predicted is NOT included in the configuration, therefore the intensity is not conditioned on locations of the type 
+                              return_papangelou = TRUE, #return as im object 
+                              grid_steps = c(100, 100), #think of as pixel area the intensity is calculated for 
+                              nthreads = 4)) 
     
-    focal_configuration <- suppressWarnings(ppp(x = configuration[focal]$x,
+    focal_configuration <- suppressWarnings(ppp(x = configuration[focal]$x, #make configuration into a ppp object to use the auc function from spatstat
                                                 y = configuration[focal]$y, 
-                                                window = owin(c(0, 400), c(0, 400))))
+                                                window = window))
     
-    cat(paste0("Focal species: ", focal, ", conditional AUC: ", 
-               auc(focal_configuration, conditional_intensity), ".\n"))
+    df_working <- data.frame(
+      type = focal, 
+      auc = auc(focal_configuration, conditional_intensity) #compute auc score into a df
+    )
+    
+    df <- rbind(df, df_working)
   }
+  
+  return(df) #outputs as a df 
 }
+
 ```
 
 This function compares the predicted conditional intensity map to that of the configuration of the focal group to produce the conditional AUC score for the focal group.
 
 ```{r}
-conditional_auc(configuration, fit)
+window <- owin(x_range = c(0,320), 
+               y_range = c(0,500))
+
+conditional_auc(window, configuration, fit)
 ```
 
 ## Comparison to Other Models
