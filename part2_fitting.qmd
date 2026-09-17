@@ -73,7 +73,7 @@ At this point, you make happen across an error or warning when trying to fit the
 
 ### Misspecification of Parameters
 
-If parameters are misspecified in the fit you will see this warning message, and the interaction coefficient (alpha) matrix will be NULL.
+If parameters are misspecified in the fit you will see this warning message, and/or the interaction coefficient (alpha) matrix will be NULL (for a quick check run `coef(fit$alpha[[1]])` for this). 
 
 ```         
 Warning message: from glmnet C++ code (error code -100); Convergence for 100th lambda value not reached after maxit=100000 iterations; solutions for larger lambdas returned  > coef(fit$alpha[[1]]) NULL
